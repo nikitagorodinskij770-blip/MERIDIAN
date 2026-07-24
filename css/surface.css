@@ -1,17 +1,20 @@
 /* ============================================================================
-   MERIDIAN — фоновая среда и визуальная глубина.
+   MERIDIAN — фоновая среда и глубина.
 
-   «Безграничный задний экран»: фон живёт в position:fixed слое под контентом,
-   поэтому не кончается вместе со страницей и не прокручивается вместе с ней.
-   Скролл движет только содержимое — среда остаётся неподвижной, как окно
-   в торговый зал.
+   Фон построен только на свете и тени: никаких сеток, орбит и геометрии.
+   Глубина создаётся тремя средствами, и все они работают на читаемость,
+   а не на украшение:
 
-   Слои снизу вверх:
-     1. основа        — вертикальный градиент, задаёт «глубину» страницы
-     2. сетка         — координатная решётка, отсылка к торговым терминалам
-     3. свечение      — два мягких пятна, разбивают плоскость
-     4. виньетка      — притеняет края, собирает взгляд к центру
-     5. зерно         — едва различимая текстура против «пластиковости»
+     1. Вертикальный градиент — задаёт «верх» и «низ» страницы, чтобы плоскость
+        не выглядела бесконечно ровной.
+     2. Мягкие пятна света — очень широкие радиальные градиенты малой
+        насыщенности. На глаз воспринимаются как рассеянный свет, а не как
+        объекты: у них нет различимого края.
+     3. Внутренняя тень по краям экрана — притеняет периферию и собирает
+        взгляд к центру, где живёт содержимое.
+
+   Слой фиксирован (position: fixed) и потому не кончается вместе со страницей
+   и не прокручивается вместе с ней: скролл движет только содержимое.
    ============================================================================ */
 
 .bg-field{
@@ -19,131 +22,265 @@
   inset: 0;
   z-index: var(--z-bg);
   pointer-events: none;
-  overflow: hidden;
-  background: linear-gradient(180deg, #ffffff 0%, var(--bg-deep) 42%, #f4f7fb 100%);
-}
-
-/* Координатная сетка. Две решётки разного шага: мелкая держит ритм,
-   крупная задаёт членение — как в терминале с минорными и мажорными делениями. */
-.bg-field::before{
-  content: "";
-  position: absolute;
-  inset: -20%;
-  background-image:
-    linear-gradient(to right,  rgba(30,89,255,.045) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(30,89,255,.045) 1px, transparent 1px),
-    linear-gradient(to right,  rgba(11,18,32,.028) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(11,18,32,.028) 1px, transparent 1px);
-  background-size: 160px 160px, 160px 160px, 32px 32px, 32px 32px;
-  /* Маска гасит сетку к краям: решётка не должна упираться в границы экрана */
-  -webkit-mask-image: radial-gradient(ellipse 110% 80% at 50% 30%, #000 30%, transparent 78%);
-          mask-image: radial-gradient(ellipse 110% 80% at 50% 30%, #000 30%, transparent 78%);
-}
-
-/* Свечение: очень медленный дрейф, чтобы фон был живым, но не отвлекал */
-.bg-field::after{
-  content: "";
-  position: absolute;
-  inset: -30%;
   background:
-    radial-gradient(760px 560px at 18% 8%,  rgba(30,89,255,.10), transparent 62%),
-    radial-gradient(680px 520px at 86% 22%, rgba(168,121,31,.055), transparent 60%),
-    radial-gradient(900px 640px at 62% 96%, rgba(8,127,67,.045), transparent 65%);
-  animation: bgDrift 48s ease-in-out infinite alternate;
+    /* Пятна света: широкие, с плавным затуханием — края неразличимы */
+    radial-gradient(1400px 900px at 12% -8%,  rgba(30, 89,255,.085), transparent 58%),
+    radial-gradient(1200px 800px at 92% 12%,  rgba(30, 89,255,.055), transparent 55%),
+    radial-gradient(1600px 1000px at 50% 118%, rgba(11, 18, 32,.075), transparent 62%),
+    /* Основа: холодный белый сверху, чуть плотнее снизу */
+    linear-gradient(180deg, #ffffff 0%, #fbfcfe 34%, #f4f7fb 72%, #eef2f8 100%);
 }
 
-@keyframes bgDrift{
-  from { transform: translate3d(0,0,0) scale(1); }
-  to   { transform: translate3d(-2.5%, 1.8%, 0) scale(1.06); }
-}
-
-/* Виньетка и зерно — отдельным узлом, чтобы не занимать псевдоэлементы */
+/* Виньетка отдельным слоем: внутренняя тень по периметру.
+   box-shadow inset вместо градиента — тень одинаково ложится
+   на любое соотношение сторон, градиент пришлось бы подгонять. */
 .bg-grain{
   position: fixed;
   inset: 0;
   z-index: var(--z-bg);
   pointer-events: none;
-  opacity: .5;
-  background-image:
-    radial-gradient(ellipse 120% 100% at 50% 50%, transparent 55%, rgba(11,18,32,.05) 100%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.045'/%3E%3C/svg%3E");
+  box-shadow:
+    inset 0  120px 180px -120px rgba(11,18,32,.10),
+    inset 0 -160px 220px -140px rgba(11,18,32,.14),
+    inset  180px 0 220px -200px rgba(11,18,32,.08),
+    inset -180px 0 220px -200px rgba(11,18,32,.08);
 }
 
-/* Контент поднимается над фоном */
-#app, .site-header, .site-footer, .mobile-tabbar{ position: relative; z-index: var(--z-base); }
-
-/* ============================================================================
-   Обложки разделов
-
-   Генеративные SVG вместо фотографий: строгие, осмысленные, невесомые
-   (единицы килобайт), масштабируются без потерь и не тянут внешних запросов,
-   что важно при нашей CSP. Каждый узор отражает суть раздела, а не украшает.
-   ============================================================================ */
-
-.cover{
+/* Содержимое поднимается над фоном */
+#app, .site-header, .site-footer, .mobile-tabbar{
   position: relative;
-  border-radius: var(--r-lg);
-  overflow: hidden;
-  background: linear-gradient(135deg, #0b1220 0%, #16233f 55%, #1b2c4e 100%);
-  color: #eef2f9;
-  isolation: isolate;
-}
-
-.cover-pad{ padding: var(--sp-10) var(--sp-10) var(--sp-12); }
-
-.cover::after{                     /* узор поверх заливки */
-  content: "";
-  position: absolute; inset: 0;
-  background-image: var(--cover-art);
-  background-size: cover;
-  background-position: right center;
-  background-repeat: no-repeat;
-  opacity: .9;
-  z-index: -1;
-}
-
-.cover h1, .cover h2, .cover h3{ color: #fff; }
-.cover p{ color: #a9b8d4; }
-.cover .eyebrow{ color: #7fa0ff; }
-
-/* Рынок: восходящая свечная последовательность */
-.cover-markets{
-  --cover-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 400' preserveAspectRatio='xMaxYMid slice'%3E%3Cg stroke='%231e59ff' stroke-opacity='.5' fill='none' stroke-width='2'%3E%3Cpath d='M700 300v-90M760 280v-120M820 250v-90M880 300v-150M940 200v-110M1000 240v-130M1060 180v-100M1120 220v-90'/%3E%3C/g%3E%3Cg fill='%231e59ff' fill-opacity='.28'%3E%3Crect x='688' y='230' width='24' height='50'/%3E%3Crect x='748' y='190' width='24' height='70'/%3E%3Crect x='808' y='180' width='24' height='50'/%3E%3Crect x='868' y='170' width='24' height='100'/%3E%3Crect x='928' y='120' width='24' height='60'/%3E%3Crect x='988' y='140' width='24' height='80'/%3E%3Crect x='1048' y='100' width='24' height='60'/%3E%3Crect x='1108' y='140' width='24' height='50'/%3E%3C/g%3E%3Cpath d='M700 265L760 225 820 205 880 220 940 150 1000 180 1060 130 1120 165' stroke='%23c8a24a' stroke-opacity='.55' stroke-width='2.5' fill='none'/%3E%3C/svg%3E");
-}
-
-/* Кабинет: концентрические орбиты — портфель как система */
-.cover-account{
-  --cover-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 400' preserveAspectRatio='xMaxYMid slice'%3E%3Cg fill='none' stroke='%231e59ff' stroke-opacity='.35'%3E%3Ccircle cx='980' cy='200' r='60' stroke-width='2'/%3E%3Ccircle cx='980' cy='200' r='105' stroke-width='1.5' stroke-dasharray='3 7'/%3E%3Ccircle cx='980' cy='200' r='150' stroke-width='1.5' stroke-dasharray='3 7'/%3E%3Ccircle cx='980' cy='200' r='195' stroke-width='1' stroke-dasharray='2 9'/%3E%3C/g%3E%3Cg fill='%23c8a24a' fill-opacity='.6'%3E%3Ccircle cx='980' cy='95' r='6'/%3E%3Ccircle cx='1130' cy='200' r='5'/%3E%3Ccircle cx='875' cy='200' r='4'/%3E%3C/g%3E%3Ccircle cx='980' cy='200' r='26' fill='%231e59ff' fill-opacity='.4'/%3E%3C/svg%3E");
-}
-
-/* Безопасность: щит из пересекающихся линий */
-.cover-security{
-  --cover-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 400' preserveAspectRatio='xMaxYMid slice'%3E%3Cpath d='M1000 70l120 50v110c0 75-50 135-120 155-70-20-120-80-120-155V120z' fill='none' stroke='%231e59ff' stroke-opacity='.4' stroke-width='2.5'/%3E%3Cpath d='M1000 110l84 35v78c0 53-35 95-84 110-49-15-84-57-84-110v-78z' fill='%231e59ff' fill-opacity='.12'/%3E%3Cpath d='M958 205l30 30 58-58' stroke='%23c8a24a' stroke-opacity='.7' stroke-width='4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cg stroke='%23ffffff' stroke-opacity='.06' stroke-width='1'%3E%3Cpath d='M700 60v280M780 60v280M860 60v280'/%3E%3C/g%3E%3C/svg%3E");
-}
-
-/* Поддержка: диалоговые блоки */
-.cover-support{
-  --cover-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 400' preserveAspectRatio='xMaxYMid slice'%3E%3Cg fill='none' stroke='%231e59ff' stroke-opacity='.4' stroke-width='2'%3E%3Crect x='860' y='110' width='190' height='96' rx='14'/%3E%3Cpath d='M890 206v28l34-28'/%3E%3Crect x='960' y='218' width='190' height='96' rx='14' stroke='%23c8a24a' stroke-opacity='.5'/%3E%3Cpath d='M1120 314v28l-34-28' stroke='%23c8a24a' stroke-opacity='.5'/%3E%3C/g%3E%3Cg fill='%231e59ff' fill-opacity='.25'%3E%3Crect x='886' y='140' width='120' height='8' rx='4'/%3E%3Crect x='886' y='162' width='84' height='8' rx='4'/%3E%3C/g%3E%3Cg fill='%23c8a24a' fill-opacity='.3'%3E%3Crect x='986' y='248' width='120' height='8' rx='4'/%3E%3Crect x='986' y='270' width='96' height='8' rx='4'/%3E%3C/g%3E%3C/svg%3E");
-}
-
-/* Администрирование: узловая схема */
-.cover-admin{
-  --cover-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 400' preserveAspectRatio='xMaxYMid slice'%3E%3Cg stroke='%231e59ff' stroke-opacity='.3' stroke-width='1.5'%3E%3Cpath d='M980 200L860 120M980 200L860 280M980 200L1110 130M980 200L1110 270M980 200L980 80M980 200L980 320'/%3E%3C/g%3E%3Cg fill='%231e59ff' fill-opacity='.35'%3E%3Ccircle cx='860' cy='120' r='13'/%3E%3Ccircle cx='860' cy='280' r='13'/%3E%3Ccircle cx='1110' cy='130' r='13'/%3E%3Ccircle cx='1110' cy='270' r='13'/%3E%3Ccircle cx='980' cy='80' r='11'/%3E%3Ccircle cx='980' cy='320' r='11'/%3E%3C/g%3E%3Ccircle cx='980' cy='200' r='30' fill='%23c8a24a' fill-opacity='.45'/%3E%3Ccircle cx='980' cy='200' r='44' fill='none' stroke='%23c8a24a' stroke-opacity='.3' stroke-width='2'/%3E%3C/svg%3E");
-}
-
-/* Правовой раздел: колонны и печать */
-.cover-legal{
-  --cover-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 400' preserveAspectRatio='xMaxYMid slice'%3E%3Cg stroke='%231e59ff' stroke-opacity='.35' stroke-width='2' fill='none'%3E%3Cpath d='M880 300h200M890 130h180M900 150v145M950 150v145M1010 150v145M1060 150v145'/%3E%3Cpath d='M980 90l110 40H870z'/%3E%3C/g%3E%3Ccircle cx='1140' cy='250' r='34' fill='none' stroke='%23c8a24a' stroke-opacity='.5' stroke-width='2'/%3E%3Ccircle cx='1140' cy='250' r='24' fill='%23c8a24a' fill-opacity='.18'/%3E%3C/svg%3E");
-}
-
-/* Обмен: встречные потоки */
-.cover-exchange{
-  --cover-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 400' preserveAspectRatio='xMaxYMid slice'%3E%3Cg fill='none' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M840 150h230l-46-42M1120 250H890l46 42' stroke='%231e59ff' stroke-opacity='.45'/%3E%3C/g%3E%3Cg fill='%231e59ff' fill-opacity='.14'%3E%3Ccircle cx='830' cy='150' r='34'/%3E%3C/g%3E%3Cg fill='%23c8a24a' fill-opacity='.2'%3E%3Ccircle cx='1130' cy='250' r='34'/%3E%3C/g%3E%3Cg stroke='%23ffffff' stroke-opacity='.05'%3E%3Cpath d='M700 40v320M760 40v320'/%3E%3C/g%3E%3C/svg%3E");
+  z-index: var(--z-base);
 }
 
 /* ============================================================================
-   Стеклянные панели — глубина без тяжести
+   Логотип-словомарка
+
+   Название и есть знак: отдельной иконки нет, роль знака играет сама
+   типографика. Так подпись читается с первого взгляда и не требует
+   пояснения «что это за фигура».
+
+   Единственный графический элемент — тонкая горизонталь под буквами:
+   меридиан, давший имя. Она же служит подчёркиванием и связывает
+   слово в цельный блок.
    ============================================================================ */
+
+.wordmark{
+  display: inline-flex;
+  align-items: baseline;
+  gap: .34em;
+  font-family: var(--font-ui);
+  font-weight: var(--fw-bold);
+  letter-spacing: .17em;
+  color: var(--ink);
+  text-decoration: none;
+  line-height: 1;
+  position: relative;
+  white-space: nowrap;
+}
+
+.wordmark .wm-name{
+  position: relative;
+  padding-bottom: .3em;
+}
+
+/* Меридиан: линия под названием. Градиент к краям сходит на нет —
+   линия «уходит за горизонт», а не обрывается. */
+.wordmark .wm-name::after{
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg,
+    transparent 0%, var(--brand) 18%, var(--brand) 82%, transparent 100%);
+}
+
+/* Точка на линии — положение на меридиане */
+.wordmark .wm-name::before{
+  content: "";
+  position: absolute;
+  left: 50%; bottom: -2px;
+  width: 6px; height: 6px;
+  margin-left: -3px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 0 3px var(--bg);
+}
+
+.wordmark .wm-sub{
+  font-weight: var(--fw-medium);
+  font-size: .52em;
+  letter-spacing: .22em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+/* Размеры */
+.wordmark-sm{ font-size: 17px; }
+.wordmark-md{ font-size: 24px; }
+.wordmark-lg{ font-size: 44px; }
+.wordmark-xl{ font-size: clamp(40px, 7vw, 76px); }
+
+/* На тёмном фоне */
+.wordmark-invert{ color: #fff; }
+.wordmark-invert .wm-name::before{ box-shadow: 0 0 0 3px #0b1220; }
+.wordmark-invert .wm-sub{ color: rgba(255,255,255,.62); }
+
+/* ============================================================================
+   Первый экран
+   ============================================================================ */
+
+.gate{
+  min-height: calc(100vh - var(--header-h));
+  display: grid;
+  grid-template-columns: 1.08fr .92fr;
+  align-items: center;
+  gap: var(--sp-16);
+  max-width: var(--container);
+  margin-inline: auto;
+  padding: var(--sp-12) var(--sp-6) var(--sp-16);
+}
+
+.gate-pitch{ max-width: 34rem; }
+
+.gate-pitch h1{
+  font-size: clamp(34px, 4.6vw, 58px);
+  line-height: 1.06;
+  letter-spacing: var(--ls-tight);
+  margin: var(--sp-6) 0 var(--sp-5);
+}
+
+.gate-pitch .lead{
+  font-size: var(--fs-lg);
+  line-height: var(--lh-base);
+  color: var(--muted);
+  max-width: 44ch;
+}
+
+/* Показатели: тонкие разделители вместо рамок — «менее рамочно» */
+.gate-facts{
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-6);
+  margin-top: var(--sp-10);
+  padding-top: var(--sp-7);
+  border-top: 1px solid var(--line);
+}
+.gate-facts .f{ display: flex; flex-direction: column; gap: var(--sp-1); }
+.gate-facts .fv{
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-bold);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.gate-facts .fk{
+  font-size: var(--fs-xs);
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-wide);
+}
+
+/* Карточка входа: приподнята тенью, без тяжёлой рамки */
+.gate-card{
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  padding: var(--sp-10) var(--sp-8) var(--sp-8);
+  box-shadow:
+    0 1px 2px rgba(16,24,40,.04),
+    0 12px 28px -12px rgba(16,24,40,.14),
+    0 40px 80px -40px rgba(16,24,40,.18);
+  width: 100%;
+  max-width: 27rem;
+  margin-left: auto;
+}
+
+.gate-tabs{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-1);
+  padding: var(--sp-1);
+  background: var(--surface-2);
+  border-radius: var(--r);
+  margin-bottom: var(--sp-7);
+}
+.gate-tabs button{
+  height: var(--ctl);
+  border: none;
+  background: none;
+  border-radius: calc(var(--r) - 3px);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semi);
+  color: var(--muted);
+  transition: all var(--tr-fast);
+}
+.gate-tabs button.on{
+  background: #fff;
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Живая лента котировок под питчем */
+.gate-ticker{
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin-top: var(--sp-8);
+}
+.gate-ticker .row{
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: var(--sp-4);
+  align-items: center;
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: var(--fs-sm);
+}
+.gate-ticker .row:last-child{ border-bottom: none; }
+.gate-ticker .sym{ color: var(--ink); font-weight: var(--fw-semi); }
+.gate-ticker .px{ font-family: var(--font-mono); color: var(--text); }
+.gate-ticker .ch{ font-family: var(--font-mono); font-size: var(--fs-xs); min-width: 4.5rem; text-align: right; }
+
+@media (max-width: 1000px){
+  .gate{
+    grid-template-columns: 1fr;
+    gap: var(--sp-10);
+    padding-top: var(--sp-8);
+    min-height: 0;
+  }
+  .gate-card{ margin-inline: auto; }
+  .gate-pitch{ max-width: none; }
+}
+
+@media (max-width: 560px){
+  .gate{ padding-inline: var(--sp-4); }
+  .gate-facts{ grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
+  .gate-card{ padding: var(--sp-7) var(--sp-5) var(--sp-6); border-radius: var(--r-lg); }
+}
+
+/* ============================================================================
+   Карточки: глубина тенью, а не обводкой
+   ============================================================================ */
+
+.card, .panel{
+  box-shadow:
+    0 1px 2px rgba(16,24,40,.04),
+    0 8px 20px -14px rgba(16,24,40,.16);
+}
+
+/* Световая грань сверху: карточка выглядит поднятой, а не наклеенной */
+.card::before, .panel::before{
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent,
+              rgba(255,255,255,.9) 22%, rgba(255,255,255,.9) 78%, transparent);
+  border-radius: inherit;
+  pointer-events: none;
+}
+.card, .panel, .tile{ position: relative; }
 
 .panel{
   background: var(--glass);
@@ -151,20 +288,56 @@
   -webkit-backdrop-filter: blur(12px) saturate(150%);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
-  box-shadow: var(--shadow-sm);
 }
 
-/* Тонкая световая грань сверху: карточка выглядит поднятой, а не наклеенной */
-.card, .panel, .tile{ position: relative; }
-.card::before, .panel::before{
-  content: "";
-  position: absolute; inset: 0 0 auto 0; height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,.85) 22%,
-                              rgba(255,255,255,.85) 78%, transparent);
-  border-radius: inherit;
-  pointer-events: none;
+/* ============================================================================
+   Режим первого экрана
+
+   Шапка, подвал и таб-бар скрыты: до входа их пункты всё равно недоступны,
+   а пустая навигация выглядит как обещание, которое интерфейс не выполняет.
+   ============================================================================ */
+
+body.is-gate .site-header,
+body.is-gate .site-footer,
+body.is-gate .mobile-tabbar{ display: none; }
+body.is-gate{ padding-bottom: 0; }
+
+/* Преимущества под карточкой входа */
+.gate-points{
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  max-width: 27rem;
+  margin: var(--sp-8) 0 0 auto;
+}
+.gate-points .gp{
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: var(--sp-4);
+  align-items: start;
+}
+.gate-points .gp-ic{
+  width: 34px; height: 34px;
+  display: grid; place-items: center;
+  border-radius: var(--r-sm);
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+.gate-points .gp b{
+  display: block;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semi);
+  color: var(--ink);
+  margin-bottom: var(--sp-1);
+  line-height: var(--lh-snug);
+}
+.gate-points .gp span{
+  display: block;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  line-height: var(--lh-snug);
 }
 
-@media (prefers-reduced-motion: reduce){
-  .bg-field::after{ animation: none; }
+@media (max-width: 1000px){
+  .gate-points{ margin-inline: auto; }
 }

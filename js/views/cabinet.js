@@ -380,6 +380,16 @@ export default {
             <div class="kv"><span>Роль</span><b>${u.role === 'admin' ? 'Администратор'
               : u.role === 'support' ? 'Сотрудник поддержки' : 'Клиент'}</b></div>
           </div>
+
+          <div style="margin-top:var(--sp-8);padding-top:var(--sp-6);
+                      border-top:1px solid var(--line)">
+            <h3 style="margin-bottom:var(--sp-2);font-size:var(--fs-base)">Завершение работы</h3>
+            <p class="muted" style="font-size:var(--fs-sm);margin-bottom:var(--sp-4)">
+              Выход завершит текущую сессию на этом устройстве.
+              Остальные сессии продолжат работу — закрыть их можно в разделе
+              «Безопасность».</p>
+            <button class="btn btn-ghost" data-signout>${ICONS.logout}Выйти из счёта</button>
+          </div>
         </div>
       </div>`;
     }
@@ -448,6 +458,18 @@ export default {
         paintCover();
         toast({ title: 'Профиль сохранён', kind: 'ok' });
       } catch (e) { toast({ title: 'Ошибка', msg: e.message, kind: 'err' }); }
+    });
+
+
+    on(el, 'click', '[data-signout]', async () => {
+      const ok = await confirmModal({
+        title: 'Выйти из счёта',
+        text: 'Сессия на этом устройстве будет завершена. Для возврата потребуется войти заново.',
+        okLabel: 'Выйти',
+      });
+      if (!ok) return;
+      await session.signOut();
+      toast({ title: 'Вы вышли из счёта', kind: 'ok' });
     });
 
     bindCopy(el);

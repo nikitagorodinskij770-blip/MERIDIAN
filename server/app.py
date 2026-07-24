@@ -30,6 +30,8 @@ DEFAULT_PORT = 8787
 # Источники, к которым фронтенду разрешено ходить за котировками.
 # Список закрытый: всё, чего здесь нет, браузер заблокирует сам.
 QUOTE_ORIGINS = " ".join([
+    "https://elokoleohntufgrkyvxm.supabase.co",
+    "wss://elokoleohntufgrkyvxm.supabase.co",
     "https://api.binance.com", "wss://stream.binance.com:9443",
     "https://api.coinbase.com", "https://api.exchange.coinbase.com",
     "https://api.coingecko.com", "https://www.okx.com",

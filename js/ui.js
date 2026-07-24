@@ -176,7 +176,7 @@ export function renderHeader() {
 
   el.innerHTML = `
     <div class="container header-inner">
-      <a href="#/" class="brand">${ICONS.logo}<b>MERIDIAN</b><small class="hide-sm">exchange</small></a>
+      <a href="#/markets" class="wordmark wordmark-sm"><span class="wm-name">MERIDIAN</span></a>
       <nav class="nav">
         ${NAV.map(n => `<a href="${n.href}">${n.label}</a>`).join('')}
       </nav>
@@ -193,9 +193,7 @@ export function renderHeader() {
           <a class="acct-chip" href="#/cabinet" title="Личный кабинет">
             <span class="ava">${esc(initial)}</span>
             <span class="bal mono">${fmtUSD(s.portfolioUsd)}</span>
-          </a>` : `
-          <a class="btn btn-ghost hide-sm" href="#/signin">Войти</a>
-          <a class="btn btn-primary" href="#/signup">Открыть счёт</a>`}
+          </a>` : ''}
         <button class="menu-toggle" data-menu aria-label="Меню">${ICONS.menu}</button>
       </div>
     </div>`;
@@ -301,9 +299,7 @@ function openDrawer() {
       </div>
       ${links.map(l => `<a href="${l.href}">${l.label}</a>`).join('')}
       <div style="margin-top:20px">
-        ${signed
-          ? `<button class="btn btn-ghost btn-block" data-out>Выйти</button>`
-          : `<a class="btn btn-primary btn-block" href="#/signup">Открыть счёт</a>`}
+        ${signed ? `<a class="btn btn-ghost btn-block" href="#/cabinet/profile">Настройки счёта</a>` : ''}
       </div>
     </div>
   </div>`);
@@ -361,7 +357,7 @@ export function renderFooter() {
     <div class="container">
       <div class="footer-inner">
         <div class="footer-col footer-brand">
-          <a href="#/" class="brand">${ICONS.logo}<b>MERIDIAN</b></a>
+          <a href="#/markets" class="wordmark wordmark-md"><span class="wm-name">MERIDIAN</span></a>
           <p>${esc(BRAND.tagline)}. Обменник цифровых активов институционального уровня.</p>
           <p class="mono" style="font-size:12px;color:var(--faint);margin-top:12px">
             ${esc(BRAND.legalName)}<br>
