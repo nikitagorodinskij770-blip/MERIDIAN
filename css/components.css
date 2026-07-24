@@ -1,0 +1,301 @@
+/* ============================================================================
+   MERIDIAN — компоненты кабинета, поддержки и администрирования.
+
+   Симметрия здесь не украшение, а следствие правил:
+     · все элементы управления одной высоты (--ctl*) → выравниваются в строке;
+     · отступы только из шкалы 4px → блоки садятся на общую сетку;
+     · карточки в ряду тянутся до одной высоты (align-items:stretch по умолчанию
+       в grid) → нижние края совпадают без ручной подгонки.
+   ============================================================================ */
+
+/* ── Сегментная навигация: замена «рамочных» вкладок ──
+   Подчёркивание вместо рамки — раздел читается как продолжение страницы,
+   а не как отдельная коробка внутри коробки. */
+.seg-nav{
+  display: flex;
+  gap: var(--sp-1);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: var(--sp-6);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.seg-nav::-webkit-scrollbar{ display: none; }
+
+.seg-item{
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  height: var(--ctl-lg);
+  padding: 0 var(--sp-4);
+  border: none; background: none;
+  color: var(--muted);
+  font-size: var(--fs-base); font-weight: var(--fw-semi);
+  white-space: nowrap;
+  position: relative;
+  transition: color var(--tr-fast);
+}
+.seg-item svg{ width: 17px; height: 17px; }
+.seg-item:hover{ color: var(--ink); }
+.seg-item.on{ color: var(--brand); }
+.seg-item.on::after{
+  content: ""; position: absolute; left: var(--sp-3); right: var(--sp-3); bottom: -1px;
+  height: 2px; background: var(--brand); border-radius: 2px 2px 0 0;
+}
+
+/* ── Полоса показателей на обложке ── */
+.cover-stats{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--sp-4);
+  margin-top: var(--sp-8);
+  padding-top: var(--sp-6);
+  border-top: 1px solid rgba(255,255,255,.12);
+}
+.cover-stats .cs{ display: flex; flex-direction: column; gap: var(--sp-1); }
+.cover-stats .k{
+  font-size: var(--fs-xs); color: #8fa3c8;
+  text-transform: uppercase; letter-spacing: var(--ls-wide);
+}
+.cover-stats .v{
+  font-family: var(--font-mono); font-size: var(--fs-xl);
+  font-weight: var(--fw-bold); color: #fff; font-variant-numeric: tabular-nums;
+}
+
+/* ── Список «ключ — значение»: ровные колонки без таблицы ── */
+.kv-list{ display: flex; flex-direction: column; }
+.kv{
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: var(--fs-base);
+}
+.kv:last-child{ border-bottom: none; }
+.kv > span{ color: var(--muted); }
+.kv > b{ color: var(--ink); font-weight: var(--fw-semi); text-align: right; }
+
+/* ── Карточка-показатель ── */
+.stat-card{ display: flex; flex-direction: column; gap: var(--sp-2); }
+.stat-card .k{
+  font-size: var(--fs-xs); color: var(--muted);
+  text-transform: uppercase; letter-spacing: var(--ls-wide);
+}
+.stat-card .v{
+  font-family: var(--font-mono); font-size: var(--fs-2xl);
+  font-weight: var(--fw-bold); color: var(--ink);
+  font-variant-numeric: tabular-nums; line-height: var(--lh-tight);
+}
+
+/* Авто-сетка: карточки сами раскладываются, число колонок зависит от ширины */
+.grid-auto{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(228px, 1fr));
+  gap: var(--sp-5);
+}
+.grid-auto-wide{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--sp-5);
+}
+
+/* ── Строка устройства / сессии ── */
+.dev-row{
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  gap: var(--sp-3);
+  align-items: center;
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.dev-row:last-child{ border-bottom: none; }
+.dev-row .ic{
+  width: 38px; height: 38px; border-radius: var(--r-sm);
+  display: grid; place-items: center;
+  background: var(--surface-2); color: var(--brand);
+}
+.t-main{ color: var(--ink); font-weight: var(--fw-semi); font-size: var(--fs-base); }
+.t-sub{ color: var(--muted); font-size: var(--fs-xs); margin-top: 2px; }
+
+/* ── Замечания вместо «рамок» ── */
+.note{
+  display: flex; gap: var(--sp-3);
+  padding: var(--sp-4);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm); line-height: var(--lh-snug);
+  border-left: 3px solid;
+}
+.note svg{ flex: none; width: 18px; height: 18px; margin-top: 1px; }
+.note-info{ background: var(--brand-soft); border-color: var(--brand); color: var(--brand-ink); }
+.note-warn{ background: var(--warn-soft); border-color: var(--warn); color: #7a5a12; }
+.note-bad { background: var(--down-soft); border-color: var(--down); color: #a5162a; }
+.note-good{ background: var(--up-soft);   border-color: var(--up);   color: #0a6b3a; }
+.note a{ font-weight: var(--fw-semi); }
+
+/* ============================================================================
+   Чат с поддержкой
+   ============================================================================ */
+
+.chat-layout{
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: var(--sp-5);
+  align-items: start;
+  min-height: 560px;
+}
+
+.chat-list{ overflow: hidden; }
+.chat-list [data-list]{ max-height: 620px; overflow-y: auto; }
+
+.ticket-item{
+  display: block; width: 100%; text-align: left;
+  padding: var(--sp-4) var(--sp-5);
+  border: none; border-bottom: 1px solid var(--line-soft);
+  background: none;
+  transition: background var(--tr-fast);
+  position: relative;
+}
+.ticket-item:hover{ background: var(--surface); }
+.ticket-item.on{ background: var(--brand-soft); }
+.ticket-item.on::before{
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0;
+  width: 3px; background: var(--brand);
+}
+.ticket-item .t-main{
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.chat-thread{ display: flex; flex-direction: column; min-height: 560px; }
+.chat-head{ align-items: flex-start; }
+
+.chat-body{
+  flex: 1;
+  padding: var(--sp-6);
+  overflow-y: auto;
+  max-height: 480px;
+  display: flex; flex-direction: column; gap: var(--sp-4);
+  background:
+    linear-gradient(180deg, rgba(246,248,250,.6), transparent 120px);
+}
+
+.msg{ max-width: 76%; display: flex; flex-direction: column; gap: var(--sp-1); }
+.msg.mine{ align-self: flex-end; align-items: flex-end; }
+.msg.theirs{ align-self: flex-start; }
+
+.msg-meta{ font-size: var(--fs-2xs); color: var(--faint); padding: 0 var(--sp-2); }
+.msg-body{
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md);
+  font-size: var(--fs-base); line-height: var(--lh-snug);
+  border: 1px solid var(--line);
+  background: #fff; color: var(--text);
+}
+.msg.mine .msg-body{
+  background: var(--brand); border-color: var(--brand); color: #fff;
+  border-bottom-right-radius: var(--r-xs);
+}
+.msg.theirs .msg-body{ border-bottom-left-radius: var(--r-xs); }
+/* Внутренняя заметка оператора: визуально отделена, чтобы её не спутали с ответом */
+.msg.internal .msg-body{
+  background: var(--warn-soft); border-color: var(--warn-line);
+  color: #7a5a12; border-style: dashed;
+}
+
+.chat-compose{
+  display: flex; gap: var(--sp-3); align-items: flex-end;
+  padding: var(--sp-4) var(--sp-5);
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+.chat-compose textarea{ flex: 1; resize: vertical; min-height: 62px; }
+.chat-compose.closed{ justify-content: center; padding: var(--sp-6); }
+
+/* ============================================================================
+   Уведомления
+   ============================================================================ */
+
+.notif-row{
+  display: grid;
+  grid-template-columns: 38px 1fr auto;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5);
+  border-bottom: 1px solid var(--line-soft);
+  transition: background var(--tr-fast);
+  position: relative;
+}
+.notif-row:hover{ background: var(--surface); }
+.notif-row.unread{ background: var(--brand-soft); }
+.notif-row.unread::before{
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0;
+  width: 3px; background: var(--brand);
+}
+.notif-row .ic{
+  width: 36px; height: 36px; border-radius: 50%;
+  display: grid; place-items: center;
+}
+.ic-info{ background: var(--brand-soft); color: var(--brand); }
+.ic-success{ background: var(--up-soft); color: var(--up); }
+.ic-warning{ background: var(--warn-soft); color: var(--warn); }
+.ic-critical{ background: var(--down-soft); color: var(--down); }
+
+/* Счётчик непрочитанного в шапке */
+.bell{ position: relative; }
+.bell-dot{
+  position: absolute; top: 2px; right: 2px;
+  min-width: 17px; height: 17px; padding: 0 4px;
+  border-radius: var(--r-pill);
+  background: var(--down); color: #fff;
+  font-size: 10px; font-weight: var(--fw-bold);
+  display: grid; place-items: center;
+  border: 2px solid #fff;
+}
+
+/* ============================================================================
+   Права сотрудника: сетка чекбоксов
+   ============================================================================ */
+
+.perm-grid{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--sp-2);
+}
+.perm-item{
+  display: flex; align-items: flex-start; gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: all var(--tr-fast);
+  font-size: var(--fs-sm);
+}
+.perm-item:hover{ border-color: var(--brand-line); background: var(--brand-soft); }
+.perm-item input{ margin-top: 2px; accent-color: var(--brand); }
+.perm-item code{
+  display: block; font-size: var(--fs-2xs); color: var(--faint);
+  font-family: var(--font-mono); margin-top: 2px;
+}
+
+/* ============================================================================
+   Адаптив
+   ============================================================================ */
+
+@media (max-width: 1080px){
+  .chat-layout{ grid-template-columns: 300px 1fr; }
+}
+
+@media (max-width: 860px){
+  .chat-layout{ grid-template-columns: 1fr; min-height: auto; }
+  .chat-list [data-list]{ max-height: 260px; }
+  .chat-thread{ min-height: 420px; }
+  .msg{ max-width: 88%; }
+  .cover-pad{ padding: var(--sp-6) var(--sp-5) var(--sp-8); }
+  .cover-stats{ grid-template-columns: repeat(2, 1fr); gap: var(--sp-3); margin-top: var(--sp-5); }
+  .cover::after{ opacity: .35; }          /* узор не должен спорить с текстом на узком экране */
+  .seg-item{ padding: 0 var(--sp-3); }
+  .seg-item span{ font-size: var(--fs-sm); }
+}
+
+@media (max-width: 520px){
+  .cover-stats{ grid-template-columns: 1fr 1fr; }
+  .cover-stats .v{ font-size: var(--fs-lg); }
+  .seg-item svg{ display: none; }
+  .dev-row{ grid-template-columns: 34px 1fr; }
+  .dev-row > *:last-child{ grid-column: 2; text-align: left !important; }
+}

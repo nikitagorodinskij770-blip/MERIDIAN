@@ -1,0 +1,22 @@
+# ── Секреты ──
+# .env.local содержит service_role и пароль Postgres — ключи, обходящие RLS.
+# Попадание их в репозиторий равносильно передаче полного доступа к базе.
+.env.local
+.env*.local
+.env.production
+*.pem
+server/.instance_secret
+
+# ── Локальная база ──
+server/meridian.db
+server/meridian.db-wal
+server/meridian.db-shm
+
+# ── Служебное ──
+node_modules/
+.vercel
+.DS_Store
+Thumbs.db
+__pycache__/
+*.pyc
+.venv/

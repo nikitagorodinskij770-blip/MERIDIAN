@@ -1,0 +1,149 @@
+/* ============================================================================
+   MERIDIAN — дизайн-токены.
+
+   Типографика: интерфейс на системном гротеске, но с явной шкалой и
+   табличными цифрами. Числа в бирже читают колонками, поэтому цифра обязана
+   иметь постоянную ширину — иначе столбец цен «дышит» при каждом тике.
+
+   Шкала размеров построена на отношении 1.2 (малая терция): достаточно
+   различимо между уровнями и не даёт разнобоя, который получается при
+   произвольных значениях.
+
+   Сетка: всё кратно 4px. Отступы, радиусы, высоты элементов — из одного
+   набора, поэтому блоки выравниваются между собой без подгонки.
+   ============================================================================ */
+
+:root{
+  /* ── Поверхности ── */
+  --bg:            #ffffff;
+  --bg-deep:       #fbfcfd;   /* фон страницы под контентом */
+  --surface:       #f6f8fa;
+  --surface-2:     #eef1f5;
+  --surface-3:     #e6eaf0;
+  --overlay:       rgba(11,18,32,.52);
+  --glass:         rgba(255,255,255,.72);
+
+  /* ── Линии ── */
+  --line:          #e4e8ee;
+  --line-soft:     #eef1f5;
+  --line-strong:   #d3d9e2;
+
+  /* ── Текст ── */
+  --ink:           #0b1220;   /* заголовки            17.0:1 */
+  --text:          #374151;   /* тело                 10.3:1 */
+  --muted:         #5b6472;   /* второстепенное        6.0:1 */
+  --faint:         #6b7280;   /* подписи               4.8:1 */
+
+  /* ── Бренд ── */
+  --brand:         #1e59ff;
+  --brand-hover:   #1546d6;
+  --brand-press:   #1039b0;
+  --brand-soft:    #eaf0ff;
+  --brand-line:    #c7d7ff;
+  --brand-ink:     #0a2a8c;
+
+  /* ── Металл: точечно, для премиум-акцентов ── */
+  --gold:          #a8791f;
+  --gold-soft:     #f7f1e2;
+  --gold-line:     #e6d9b8;
+
+  /* ── Рынок ──
+     Затемнены до прохождения WCAG 2.2 AA на белом: эти цвета несут
+     мелкий текст цен, где контраст критичен. */
+  --up:            #087f43;   /* 5.1:1 */
+  --up-soft:       #e7f6ee;
+  --up-line:       #bfe3d0;
+  --down:          #c8102e;   /* 5.9:1 */
+  --down-soft:     #fdecee;
+  --down-line:     #f3c9d0;
+  --warn:          #8a5a00;   /* 5.9:1 */
+  --warn-soft:     #fdf5e6;
+  --warn-line:     #ecdcb8;
+  /* Насыщенные — только для крупных элементов и заливок (порог 3:1) */
+  --up-vivid:      #0ea75f;
+  --down-vivid:    #e0323f;
+
+  /* ── Тени: одна семья, разная высота ── */
+  --shadow-xs:     0 1px 2px rgba(16,24,40,.04);
+  --shadow-sm:     0 1px 3px rgba(16,24,40,.06), 0 1px 2px rgba(16,24,40,.04);
+  --shadow:        0 2px 8px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.04);
+  --shadow-md:     0 8px 20px rgba(16,24,40,.08), 0 2px 6px rgba(16,24,40,.04);
+  --shadow-lg:     0 16px 40px rgba(16,24,40,.12), 0 4px 12px rgba(16,24,40,.06);
+  --shadow-focus:  0 0 0 3px var(--brand-soft);
+
+  /* ── Радиусы ── */
+  --r-xs: 4px; --r-sm: 8px; --r: 10px; --r-md: 14px; --r-lg: 18px;
+  --r-xl: 24px; --r-pill: 999px;
+
+  /* ── Сетка 4px ── */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px; --sp-5: 20px;
+  --sp-6: 24px; --sp-7: 28px; --sp-8: 32px; --sp-10: 40px; --sp-12: 48px;
+  --sp-14: 56px; --sp-16: 64px; --sp-20: 80px; --sp-24: 96px;
+
+  /* ── Типографика ──
+     Inter — если установлен в системе; иначе системный гротеск.
+     Внешние шрифты не подключаем: CSP запрещает сторонние источники,
+     а офлайн-работа входит в требования проекта. */
+  --font-ui: "Inter", "Inter var", "SF Pro Display", -apple-system,
+             BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI",
+             Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, "Cascadia Mono",
+               "Roboto Mono", Consolas, "Liberation Mono", monospace;
+
+  /* Модульная шкала 1.2 */
+  --fs-2xs:  11px;
+  --fs-xs:   12px;
+  --fs-sm:   13px;
+  --fs-base: 14px;
+  --fs-md:   15px;
+  --fs-lg:   17px;
+  --fs-xl:   20px;
+  --fs-2xl:  25px;
+  --fs-3xl:  32px;
+  --fs-4xl:  42px;
+  --fs-5xl:  56px;
+
+  --lh-tight: 1.15;
+  --lh-snug:  1.35;
+  --lh-base:  1.6;
+
+  /* Насыщенность: 550 как «полужирный текст» даёт чище рендер,
+     чем 600 на светлом фоне при мелком кегле */
+  --fw-normal: 400; --fw-medium: 500; --fw-semi: 550;
+  --fw-bold: 650;   --fw-black: 750;
+
+  --ls-tight: -.018em;   /* крупные заголовки */
+  --ls-snug:  -.008em;
+  --ls-wide:  .06em;
+  --ls-caps:  .12em;     /* надзаголовки капслоком */
+
+  /* ── Единая высота элементов управления ──
+     Кнопка, поле и селект одной высоты выравниваются в строке
+     без ручной правки — отсюда симметрия форм. */
+  --ctl-sm: 32px;
+  --ctl:    40px;
+  --ctl-lg: 48px;
+
+  /* ── Раскладка ── */
+  --container:      1280px;
+  --container-wide: 1560px;
+  --header-h:  64px;
+  --tabbar-h:  62px;
+  --rail-w:    248px;    /* боковая навигация кабинета */
+
+  --z-bg: 0; --z-base: 1; --z-header: 50; --z-tabbar: 55;
+  --z-banner: 60; --z-toast: 80; --z-modal: 90; --z-top: 100;
+
+  --tr-fast: 120ms cubic-bezier(.4,0,.2,1);
+  --tr:      200ms cubic-bezier(.4,0,.2,1);
+  --tr-slow: 380ms cubic-bezier(.22,1,.36,1);
+}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{
+    animation-duration:.001ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:.001ms !important;
+    scroll-behavior:auto !important;
+  }
+}
