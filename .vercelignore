@@ -1,0 +1,10 @@
+# На статический деплой уходит только фронтенд. Всё остальное — исходники
+# бэкенда, миграции и документация — не должно быть публично доступно по URL.
+server/
+supabase/
+docs/
+serve.py
+*.md
+.claude/
+assets/icons/gen_icons.py
+assets/icons/LICENSES.md
