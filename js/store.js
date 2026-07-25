@@ -1,9 +1,18 @@
-/* MERIDIAN — состояние песочницы.
-   Всё живёт в localStorage. Никакого сервера, никаких реальных средств.
-   → PROD: заменяется на REST + WS (см. PLAN.md §4) с серверными балансами. */
+/* MERIDIAN — торговое состояние поверх Supabase.
 
-import { CONFIG, ASSET_MAP, ASSETS } from './seed.js';
+   Раньше здесь жила песочница в localStorage. Теперь балансы, заявки, история
+   и продукты доходности приходят из базы через RLS и денежные RPC-функции —
+   единственный способ изменить баланс. Публичный API модуля сохранён прежним,
+   поэтому представления не меняются: они по-прежнему читают синхронный кэш S,
+   а мутации обновляют его оптимистично и тут же сверяются с базой.
+
+   Клиентские предпочтения (избранное, отображение, демо-ключи API) остаются
+   в localStorage — это не деньги, серверу они не нужны. */
+
+import { CONFIG, ASSET_MAP } from './seed.js';
 import * as market from './market.js';
+import * as sb from './api/supabase.js';
+import * as session from './core/session.js';
 
 /* ── Мини-эмиттер ─────────────────────────────────────────────────────── */
 const bus = {};
@@ -16,14 +25,13 @@ function emit(evt, payload) {
 }
 function notify(title, msg, kind = 'ok') { emit('notify', { title, msg, kind }); }
 
-/* ── Генераторы адресов и хэшей (правдоподобные, но фиктивные) ─────────── */
+/* ── Генераторы адресов и хэшей (правдоподобные, для отображения) ──────── */
 const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 const B32 = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
 const HEX = '0123456789abcdef';
 const pick = (alphabet, n) =>
   Array.from({ length: n }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
 
-/** Депозит-адрес нужного формата под сеть. → PROD: HD-деривация (PLAN.md §6.5). */
 export function genAddress(network) {
   switch (network) {
     case 'Bitcoin':        return 'bc1q' + pick(B32, 38);
@@ -41,160 +49,173 @@ export function genAddress(network) {
     case 'NEAR':           return pick('0123456789abcdef', 64);
     case 'Sui':
     case 'Aptos':          return '0x' + pick(HEX, 64);
-    default:               return '0x' + pick(HEX, 40); // ERC20/BEP20/Polygon/Arbitrum/Optimism
+    case 'SEPA':           return 'EE' + pick('0123456789', 18);
+    default:               return '0x' + pick(HEX, 40);
   }
 }
 export function genTxHash(network) {
-  // Base58-хэши
   if (network === 'Solana' || network === 'TON') return pick(B58, 64);
-  // Голый hex без префикса (UTXO-сети и TRON)
   if (['Bitcoin', 'Lightning', 'Litecoin', 'Bitcoin Cash', 'Dogecoin', 'Monero',
-       'TRC20', 'Cardano', 'XRP Ledger', 'Cosmos', 'NEAR'].includes(network)) {
+       'TRC20', 'Cardano', 'XRP Ledger', 'Cosmos', 'NEAR', 'SEPA'].includes(network)) {
     return pick(HEX, 64);
   }
-  // EVM-совместимые сети
   return '0x' + pick(HEX, 64);
 }
 const genId = (p) => `${p}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
-/* ── Начальное состояние ──────────────────────────────────────────────── */
-function blank() {
+/* ── Состояние ────────────────────────────────────────────────────────── */
+function blankPrefs() {
   return {
-    v: 1,
-    signedIn: false,
-    user: null,
-    balances: {},
-    locked: {},
-    transactions: [],
-    orders: [],
-    earn: [],
-    apiKeys: [],
     watchlist: ['BTC', 'ETH', 'SOL', 'TON'],
     settings: { hideBalances: false, display: 'USD', tickerSound: false },
+    apiKeys: [],
     depositAddrs: {},   // `${asset}|${network}` → адрес (стабилен между визитами)
   };
 }
 
-let S = blank();
+const S = {
+  avail: {},          // свободный остаток (человеческие единицы)
+  locked: {},         // заблокировано под заявки
+  transactions: [],   // депозиты, выводы, обмены, покупки
+  orders: [],         // открытые заявки
+  earn: [],           // позиции доходности
+  user: null,         // профиль из session
+  ...blankPrefs(),
+};
 
-/* ── Персистентность ──────────────────────────────────────────────────── */
-function save() {
-  try { localStorage.setItem(CONFIG.storageKey, JSON.stringify(S)); }
-  catch (e) { console.warn('localStorage недоступен', e); }
-}
-function load() {
+const PREFS_KEY = 'meridian.prefs.v1';
+function loadPrefs() {
   try {
-    const raw = localStorage.getItem(CONFIG.storageKey);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && parsed.v === 1) S = { ...blank(), ...parsed };
-    }
-  } catch (e) { console.warn('Не удалось прочитать состояние', e); }
+    const raw = localStorage.getItem(PREFS_KEY);
+    if (raw) Object.assign(S, blankPrefs(), JSON.parse(raw));
+  } catch { /* приватный режим */ }
 }
-function commit() { save(); emit('change', S); }
+function savePrefs() {
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify({
+      watchlist: S.watchlist, settings: S.settings,
+      apiKeys: S.apiKeys, depositAddrs: S.depositAddrs,
+    }));
+  } catch { /* переживём */ }
+}
+loadPrefs();
 
 export function getState() { return S; }
-export function isSignedIn() { return !!S.signedIn; }
+export function isSignedIn() { return session.isSignedIn(); }
 
-/* ── Аккаунт ──────────────────────────────────────────────────────────── */
+/* ── Гидратация из базы ───────────────────────────────────────────────── */
 
-export function signIn({ email = 'demo@meridian.exchange', name = 'Демо-пользователь' } = {}) {
-  const fresh = !S.user;
-  S.signedIn = true;
-  S.user = S.user || {
-    id: genId('usr'),
-    name, email,
-    createdAt: Date.now(),
-    kyc: 1,
-    twoFA: false,
-    tier: 'VIP 0',
-    antiPhishing: 'MERIDIAN-' + pick('ABCDEFGHJKLMNPQRSTUVWXYZ23456789', 5),
-  };
-  if (fresh) seedDemoPortfolio();
-  commit();
-  notify('Вход выполнен', 'Демо-счёт активен. Средства эмулированы.', 'ok');
+function splitPair(sym) {
+  const [base, quote] = sym.split('-');
+  return { base, quote };
 }
 
-export function signOut() {
-  S.signedIn = false;
-  commit();
-  notify('Выход выполнен', 'Данные песочницы сохранены локально.', 'ok');
+let hydrating = null;
+
+/** Перечитывает балансы, заявки, историю и доходность из базы. */
+export async function hydrate() {
+  if (!session.isSignedIn()) { clearAccount(); emit('change', S); return; }
+  if (hydrating) return hydrating;
+  hydrating = (async () => {
+    try {
+      await session.refresh();                       // авторитетные балансы + профиль + шапка
+      const st = session.get();
+      const uid = sb.currentUser()?.id;
+
+      S.avail = {}; S.locked = {};
+      (st.balances || []).forEach(b => {
+        S.avail[b.asset] = b.available;
+        S.locked[b.asset] = b.locked;
+      });
+
+      const p = st.user || {};
+      S.user = {
+        id: uid, name: p.name || p.display_name || p.email, email: p.email,
+        kyc: p.kycLevel ?? p.kyc_level ?? 0, twoFA: !!p.twoFA,
+        tier: 'VIP 0', antiPhishing: p.antiPhishing || p.anti_phishing || '',
+        createdAt: p.createdAt || 0,
+      };
+
+      const [orders, txs, earn] = await Promise.all([
+        sb.select('orders', {
+          columns: 'id,market,side,type,price,quantity,filled,status,created_at',
+          filters: { user_id: `eq.${uid}`, status: 'in.(open,partially_filled)' },
+          order: 'created_at.desc',
+        }),
+        sb.select('transactions', {
+          columns: 'id,kind,asset_id,network_id,amount,fee,address,tx_hash,status,note,created_at',
+          filters: { user_id: `eq.${uid}` }, order: 'created_at.desc', limit: 100,
+        }),
+        sb.select('earn_positions', {
+          columns: 'id,asset_id,amount,apy,product,term,opened_at',
+          filters: { user_id: `eq.${uid}`, status: 'eq.active' }, order: 'opened_at.desc',
+        }),
+      ]);
+
+      S.orders = orders.map(o => {
+        const { base, quote } = splitPair(o.market);
+        return {
+          id: o.id, pair: o.market, side: o.side, type: o.type,
+          price: sb.toNumber(quote, o.price), qty: sb.toNumber(base, o.quantity),
+          filled: sb.toNumber(base, o.filled), status: o.status,
+          ts: new Date(o.created_at).getTime(),
+        };
+      });
+
+      S.transactions = txs.map(t => ({
+        id: t.id, kind: t.kind, asset: t.asset_id, network: t.network_id,
+        amount: sb.toNumber(t.asset_id, t.amount), fee: sb.toNumber(t.asset_id, t.fee),
+        address: t.address, txHash: t.tx_hash, status: t.status, note: t.note,
+        ts: new Date(t.created_at).getTime(),
+      }));
+
+      S.earn = earn.map(e => ({
+        id: e.id, asset: e.asset_id, amount: sb.toNumber(e.asset_id, e.amount),
+        apy: Number(e.apy), kind: e.product, term: e.term,
+        since: new Date(e.opened_at).getTime(),
+      }));
+
+      emit('change', S);
+    } catch (e) {
+      console.warn('hydrate failed', e);
+    } finally {
+      hydrating = null;
+    }
+  })();
+  return hydrating;
 }
 
-export function resetDemo() {
-  S = blank();
-  save();
-  emit('change', S);
-  notify('Песочница сброшена', 'Все демо-данные удалены.', 'warn');
+function clearAccount() {
+  S.avail = {}; S.locked = {}; S.transactions = []; S.orders = []; S.earn = []; S.user = null;
 }
 
-/** Стартовый портфель + правдоподобная история. */
-function seedDemoPortfolio() {
-  S.balances = { ...CONFIG.demoBalances };
-  const now = Date.now();
-  const hist = [
-    { kind: 'deposit', asset: 'USDT', amount: 20000, network: 'TRC20', ago: 32 },
-    { kind: 'trade',   asset: 'BTC',  amount: 0.25,  ago: 28, note: 'Куплено за USDT' },
-    { kind: 'deposit', asset: 'ETH',  amount: 4.0,   network: 'ERC20', ago: 21 },
-    { kind: 'convert', asset: 'SOL',  amount: 40,    ago: 14, note: 'Обмен из USDT' },
-    { kind: 'trade',   asset: 'BTC',  amount: 0.162, ago: 9,  note: 'Куплено за USDT' },
-    { kind: 'withdraw',asset: 'USDT', amount: 3500,  network: 'TRC20', ago: 4 },
-    { kind: 'reward',  asset: 'USDT', amount: 42.18, ago: 1,  note: 'Начисление Earn' },
-  ];
-  S.transactions = hist.map(h => ({
-    id: genId('tx'),
-    kind: h.kind,
-    asset: h.asset,
-    amount: h.amount,
-    fee: 0,
-    network: h.network || null,
-    address: h.network ? genAddress(h.network) : null,
-    txHash: h.network ? genTxHash(h.network) : null,
-    status: 'completed',
-    note: h.note || null,
-    ts: now - h.ago * 86_400_000,
-  }));
-  S.earn = [
-    { id: genId('ern'), asset: 'USDT', amount: 5000, apy: 7.2, kind: 'Сберегательный', term: 'Гибкий', since: now - 30 * 86_400_000 },
-  ];
-}
+/* Автогидратация при входе/выходе: следим за сменой пользователя в сессии. */
+let boundUid = null;
+session.on('change', () => {
+  const uid = session.get().user?.id || null;
+  if (uid && uid !== boundUid) { boundUid = uid; hydrate(); }
+  else if (!uid && boundUid) { boundUid = null; clearAccount(); emit('change', S); }
+});
 
 /* ── Балансы ──────────────────────────────────────────────────────────── */
 
-export function balance(asset) { return S.balances[asset] || 0; }
+export function balance(asset) { return (S.avail[asset] || 0) + (S.locked[asset] || 0); }
 export function lockedOf(asset) { return S.locked[asset] || 0; }
-export function available(asset) { return balance(asset) - lockedOf(asset); }
+export function available(asset) { return S.avail[asset] || 0; }
 
-function credit(asset, amt) {
-  S.balances[asset] = (S.balances[asset] || 0) + amt;
-}
-function debit(asset, amt) {
-  if (available(asset) + 1e-12 < amt) {
-    const e = new Error(`Недостаточно ${asset}`);
-    e.code = 'INSUFFICIENT_BALANCE';
-    throw e;
-  }
-  S.balances[asset] = (S.balances[asset] || 0) - amt;
-}
-
-/** Все ненулевые балансы, отсортированные по стоимости в USD. */
 export function holdings() {
-  return Object.entries(S.balances)
-    .filter(([, amt]) => amt > 1e-10)
-    .map(([id, amt]) => ({
-      id, amount: amt,
-      asset: ASSET_MAP[id],
-      usd: market.toUSD(id, amt),
-    }))
+  const ids = new Set([...Object.keys(S.avail), ...Object.keys(S.locked)]);
+  return [...ids]
+    .map(id => ({ id, amount: balance(id) }))
+    .filter(h => h.amount > 1e-10)
+    .map(h => ({ id: h.id, amount: h.amount, asset: ASSET_MAP[h.id], usd: market.toUSD(h.id, h.amount) }))
     .sort((a, b) => b.usd - a.usd);
 }
 
-/** Итоговая стоимость портфеля в USD. */
 export function portfolioValue() {
   return holdings().reduce((s, h) => s + h.usd, 0);
 }
 
-/** Изменение стоимости портфеля за 24ч (USD и %). */
 export function portfolioChange24() {
   let now = 0, then = 0;
   holdings().forEach(h => {
@@ -206,7 +227,6 @@ export function portfolioChange24() {
   return { abs: now - then, pct: then ? (now / then - 1) * 100 : 0 };
 }
 
-/** Аллокация портфеля для доната. */
 export function allocation(maxSlices = 6) {
   const h = holdings();
   const total = h.reduce((s, x) => s + x.usd, 0) || 1;
@@ -219,266 +239,230 @@ export function allocation(maxSlices = 6) {
   return top;
 }
 
-/* ── Транзакции ───────────────────────────────────────────────────────── */
+/* ── История ──────────────────────────────────────────────────────────── */
 
-function addTx(tx) {
-  const rec = { id: genId('tx'), ts: Date.now(), fee: 0, status: 'completed', ...tx };
-  S.transactions.unshift(rec);
-  if (S.transactions.length > 200) S.transactions.pop();
-  return rec;
-}
 export function transactions(filter = 'all') {
   return filter === 'all' ? S.transactions : S.transactions.filter(t => t.kind === filter);
 }
 
-/** Стабильный депозит-адрес для пары актив/сеть. */
 export function depositAddress(asset, network) {
   const key = `${asset}|${network}`;
-  if (!S.depositAddrs[key]) { S.depositAddrs[key] = genAddress(network); commit(); }
+  if (!S.depositAddrs[key]) { S.depositAddrs[key] = genAddress(network); savePrefs(); }
   return S.depositAddrs[key];
 }
 
-/* ── Операции (эмулированные) ─────────────────────────────────────────── */
+/* ── Ошибки RPC → человеческий текст ──────────────────────────────────── */
+function mapErr(e) {
+  const m = {
+    INSUFFICIENT_BALANCE: 'Недостаточно средств',
+    NETWORK_NOT_SUPPORTED: 'Сеть недоступна для этого актива',
+    BELOW_MIN: 'Сумма меньше минимальной',
+    KYC_REQUIRED: 'Требуется верификация',
+    NO_PRICE: 'Нет котировки для пары',
+    NO_LIQUIDITY: 'В книге нет встречных заявок',
+    TRADING_DISABLED: 'Торговля временно приостановлена',
+    OPERATION_FROZEN: 'Операции по счёту приостановлены',
+    DUST_AMOUNT: 'Слишком маленькая сумма',
+  };
+  return m[e?.code] || e?.message || 'Повторите попытку';
+}
 
-/** Пополнение: транзакция в статусе pending, затем «подтверждение сети». */
+/* ── Операции. Оптимистично меняем кэш, затем сверяемся с базой. ───────── */
+
+function optDebit(asset, amt) { S.avail[asset] = (S.avail[asset] || 0) - amt; }
+function optCredit(asset, amt) { S.avail[asset] = (S.avail[asset] || 0) + amt; }
+function ensureFunds(asset, amt) {
+  if (available(asset) + 1e-9 < amt) {
+    const e = new Error(`Недостаточно ${asset}`); e.code = 'INSUFFICIENT_BALANCE'; throw e;
+  }
+}
+
+/** Пополнение. deposit_funds зачисляет мгновенно; показываем как подтверждённое. */
 export function deposit(asset, network, amount) {
   if (amount <= 0) throw new Error('Некорректная сумма');
-  const tx = addTx({
-    kind: 'deposit', asset, amount, network,
-    address: depositAddress(asset, network),
-    txHash: genTxHash(network),
-    status: 'pending',
-    note: 'Ожидание подтверждений сети',
-  });
-  commit();
-  notify('Пополнение принято', `${amount} ${asset} · ожидание подтверждений`, 'warn');
+  const tx = {
+    id: genId('tx'), kind: 'deposit', asset, amount, fee: 0, network,
+    address: depositAddress(asset, network), txHash: genTxHash(network),
+    status: 'pending', note: 'Ожидание подтверждений сети', ts: Date.now(),
+  };
+  S.transactions.unshift(tx);
+  emit('change', S);
+  notify('Пополнение принято', `${amount} ${asset} · сеть ${network}`, 'warn');
 
-  // Эмуляция подтверждений сети: 2.5–5 c
-  setTimeout(() => {
-    const rec = S.transactions.find(t => t.id === tx.id);
-    if (!rec) return;
-    rec.status = 'completed';
-    rec.note = 'Подтверждено сетью';
-    credit(asset, amount);
-    commit();
-    notify('Средства зачислены', `+${amount} ${asset}`, 'ok');
-  }, 2500 + Math.random() * 2500);
-
+  sb.rpc('deposit_funds', {
+    p_asset: asset, p_network: network, p_amount: sb.toMinor(asset, amount), p_tx_hash: tx.txHash,
+  }).then(() => { hydrate(); notify('Средства зачислены', `+${amount} ${asset}`, 'ok'); })
+    .catch(e => { hydrate(); notify('Пополнение отклонено', mapErr(e), 'err'); });
   return tx;
 }
 
-/** Вывод: списание сразу, затем «обработка». */
+/** Вывод: списываем сразу, затем подтверждаем в базе. */
 export function withdraw(asset, network, address, amount) {
-  const a = ASSET_MAP[asset];
   const fee = withdrawFee(asset, network);
-  const total = amount + fee;
-  debit(asset, total);
+  ensureFunds(asset, amount + fee);
+  optDebit(asset, amount + fee);
+  const tx = {
+    id: genId('tx'), kind: 'withdraw', asset, amount, fee, network, address,
+    txHash: genTxHash(network), status: 'pending', note: 'Обработка заявки', ts: Date.now(),
+  };
+  S.transactions.unshift(tx);
+  emit('change', S);
+  notify('Заявка на вывод создана', `${amount} ${asset} → ${network}`, 'warn');
 
-  const tx = addTx({
-    kind: 'withdraw', asset, amount, fee, network, address,
-    txHash: genTxHash(network),
-    status: 'pending',
-    note: 'Обработка заявки',
-  });
-  commit();
-  notify('Заявка на вывод создана', `${amount} ${a?.id} → ${network}`, 'warn');
-
-  setTimeout(() => {
-    const rec = S.transactions.find(t => t.id === tx.id);
-    if (!rec) return;
-    rec.status = 'completed';
-    rec.note = 'Отправлено в сеть';
-    commit();
-    notify('Вывод отправлен', `${amount} ${asset} · ${network}`, 'ok');
-  }, 3000 + Math.random() * 2500);
-
+  sb.rpc('withdraw_funds', {
+    p_asset: asset, p_network: network, p_address: address, p_amount: sb.toMinor(asset, amount),
+  }).then(() => { hydrate(); notify('Вывод отправлен', `${amount} ${asset} · ${network}`, 'ok'); })
+    .catch(e => { hydrate(); notify('Вывод отклонён', mapErr(e), 'err'); });
   return tx;
 }
 
-/** Комиссия сети за вывод (в единицах актива). */
+/** Комиссия сети за вывод (оценка для отображения; окончательную берёт база). */
 export function withdrawFee(asset, network) {
   const p = market.price(asset) || 1;
   const usdFee = { Bitcoin: 2.4, Lightning: 0.02, ERC20: 3.8, TRC20: 1.0, BEP20: 0.35,
-    Solana: 0.02, TON: 0.05, Polygon: 0.02, Arbitrum: 0.3, Optimism: 0.3,
+    Solana: 0.02, TON: 0.05, Polygon: 0.02, Arbitrum: 0.3, Optimism: 0.3, SEPA: 0.5,
     Litecoin: 0.05, 'Bitcoin Cash': 0.08, Monero: 0.12, Cardano: 0.25,
     'XRP Ledger': 0.02, Dogecoin: 0.5, Cosmos: 0.05, NEAR: 0.02, Sui: 0.02, Aptos: 0.02,
   }[network] ?? 1.5;
   return usdFee / p;
 }
 
-/** Мгновенный обмен from → to по рыночному курсу с комиссией. */
+/** Мгновенный обмен from → to по своду цен. */
 export function convert(from, to, amount) {
   if (from === to) throw new Error('Выберите разные активы');
   if (amount <= 0) throw new Error('Некорректная сумма');
+  ensureFunds(from, amount);
   const q = quoteConvert(from, to, amount);
-  debit(from, amount);
-  credit(to, q.net);
-
-  addTx({
-    kind: 'convert', asset: to, amount: q.net,
-    fee: q.fee, feeAsset: to,
-    note: `Обмен ${fmtShort(amount)} ${from} → ${to} по курсу ${q.rate.toPrecision(6)}`,
-    meta: { from, to, sent: amount, received: q.net },
+  optDebit(from, amount); optCredit(to, q.net);
+  S.transactions.unshift({
+    id: genId('tx'), kind: 'convert', asset: to, amount: q.net, fee: q.fee,
+    status: 'completed', note: `Обмен ${from} → ${to}`, ts: Date.now(),
   });
-  commit();
-  notify('Обмен выполнен', `${fmtShort(amount)} ${from} → ${fmtShort(q.net)} ${to}`, 'ok');
+  emit('change', S);
+  notify('Обмен выполнен', `${from} → ${to}`, 'ok');
+
+  sb.rpc('convert_funds', { p_from: from, p_to: to, p_amount: sb.toMinor(from, amount) })
+    .then(() => hydrate())
+    .catch(e => { hydrate(); notify('Обмен не выполнен', mapErr(e), 'err'); });
   return q;
 }
 
-/** Котировка обмена (см. PLAN.md §6.3). */
+/** Клиентская оценка обмена (для предпросмотра). */
 export function quoteConvert(from, to, amount) {
   const r = market.rate(from, to);
   const gross = amount * r;
   const fee = gross * CONFIG.convertFeeRate;
-  const net = gross - fee;
-  return { rate: r, gross, fee, net, feeRate: CONFIG.convertFeeRate };
+  return { rate: r, gross, fee, net: gross - fee, feeRate: CONFIG.convertFeeRate };
 }
 
-/** Покупка крипты за фиат картой (эмуляция онрампа). */
+/** Покупка криптовалюты за фиат картой. */
 export function buyWithCard(fiat, asset, fiatAmount) {
   if (fiatAmount <= 0) throw new Error('Некорректная сумма');
   const fee = fiatAmount * CONFIG.buyCardFeeRate;
-  const net = fiatAmount - fee;
-  const received = net * market.rate(fiat, asset);
-
-  credit(asset, received);
-  addTx({
-    kind: 'buy', asset, amount: received,
-    fee, feeAsset: fiat,
-    status: 'completed',
-    note: `Покупка за ${fmtShort(fiatAmount)} ${fiat} · карта ****4417`,
-    meta: { fiat, fiatAmount, received },
+  const received = (fiatAmount - fee) * market.rate(fiat, asset);
+  optCredit(asset, received);
+  S.transactions.unshift({
+    id: genId('tx'), kind: 'buy', asset, amount: received, fee: 0,
+    status: 'completed', note: `Покупка за ${fiatAmount} ${fiat} картой`, ts: Date.now(),
   });
-  commit();
-  notify('Покупка выполнена', `+${fmtShort(received)} ${asset}`, 'ok');
+  emit('change', S);
+  notify('Покупка выполнена', `+${asset}`, 'ok');
+
+  sb.rpc('buy_with_card', { p_fiat: fiat, p_asset: asset, p_fiat_amount: sb.toMinor(fiat, fiatAmount) })
+    .then(() => hydrate())
+    .catch(e => { hydrate(); notify('Покупка отклонена', mapErr(e), 'err'); });
   return { received, fee };
 }
 
-/* ── Спотовые ордера ──────────────────────────────────────────────────── */
+/* ── Спотовые заявки ──────────────────────────────────────────────────── */
 
 /**
- * Разместить ордер.
- * market — исполняется сразу по текущей цене (тейкер).
- * limit  — встаёт в книгу, средства блокируются, исполнение при пересечении цены.
+ * Рыночная заявка исполняется сразу против площадки по своду цен.
+ * Лимитная встаёт в книгу и ждёт встречной цены.
  */
 export function placeOrder({ pair, side, type, price, qty }) {
-  const { base, quote } = market.splitPair(pair);
+  const { base, quote } = splitPair(pair);
   const px = type === 'market' ? market.pairPrice(pair) : price;
   if (!qty || qty <= 0) throw new Error('Укажите количество');
   if (type === 'limit' && (!px || px <= 0)) throw new Error('Укажите цену');
 
   const notional = qty * px;
+  if (side === 'buy') ensureFunds(quote, notional); else ensureFunds(base, qty);
 
-  if (side === 'buy') debit(quote, notional);
-  else debit(base, qty);
-
-  const order = {
-    id: genId('ord'), pair, side, type,
-    price: px, qty, filled: 0,
-    status: type === 'market' ? 'filled' : 'open',
-    fee: 0, feeAsset: side === 'buy' ? base : quote,
-    ts: Date.now(),
-  };
+  // Оптимистичный резерв/исполнение
+  if (type === 'market') {
+    if (side === 'buy') { optDebit(quote, notional); optCredit(base, qty * (1 - CONFIG.takerFee)); }
+    else { optDebit(base, qty); optCredit(quote, notional * (1 - CONFIG.takerFee)); }
+  } else {
+    if (side === 'buy') optDebit(quote, notional); else optDebit(base, qty);
+  }
+  emit('change', S);
 
   if (type === 'market') {
-    settleFill(order, qty, px, CONFIG.takerFee);
-    notify('Ордер исполнен', `${side === 'buy' ? 'Куплено' : 'Продано'} ${fmtShort(qty)} ${base}`, 'ok');
+    sb.rpc('market_swap', { p_base: base, p_quote: quote, p_side: side, p_base_qty: sb.toMinor(base, qty) })
+      .then(() => { hydrate(); notify('Ордер исполнен', `${side === 'buy' ? 'Куплено' : 'Продано'} ${base}`, 'ok'); })
+      .catch(e => { hydrate(); notify('Ордер отклонён', mapErr(e), 'err'); });
   } else {
-    S.orders.unshift(order);
-    notify('Лимитный ордер размещён', `${side === 'buy' ? 'Покупка' : 'Продажа'} ${fmtShort(qty)} ${base} @ ${px.toPrecision(6)}`, 'ok');
+    sb.rpc('place_order', {
+      p_market: pair, p_side: side, p_type: 'limit',
+      p_quantity: sb.toMinor(base, qty), p_price: sb.toMinor(quote, px),
+    }).then(() => { hydrate(); notify('Лимитный ордер размещён', `${pair} @ ${px}`, 'ok'); })
+      .catch(e => { hydrate(); notify('Ордер отклонён', mapErr(e), 'err'); });
   }
-  commit();
-  return order;
-}
-
-/** Начисление по факту исполнения + запись сделки. */
-function settleFill(order, qty, px, feeRate) {
-  const { base, quote } = market.splitPair(order.pair);
-  const notional = qty * px;
-  let fee;
-  if (order.side === 'buy') {
-    fee = qty * feeRate;
-    credit(base, qty - fee);
-  } else {
-    fee = notional * feeRate;
-    credit(quote, notional - fee);
-  }
-  order.filled = qty;
-  order.fee = fee;
-  order.status = 'filled';
-
-  addTx({
-    kind: 'trade', asset: base,
-    amount: order.side === 'buy' ? qty - fee : -qty,
-    fee, feeAsset: order.feeAsset,
-    note: `${order.side === 'buy' ? 'Покупка' : 'Продажа'} ${base} @ ${px.toPrecision(6)} ${quote}`,
-    meta: { pair: order.pair, side: order.side, price: px, qty },
-  });
+  return { id: genId('ord'), pair, side, type, price: px, qty, status: type === 'market' ? 'filled' : 'open' };
 }
 
 export function cancelOrder(id) {
-  const i = S.orders.findIndex(o => o.id === id);
-  if (i < 0) return;
-  const o = S.orders[i];
-  const { base, quote } = market.splitPair(o.pair);
-  // Возврат заблокированных средств
-  if (o.side === 'buy') credit(quote, o.qty * o.price);
-  else credit(base, o.qty);
-  o.status = 'canceled';
-  S.orders.splice(i, 1);
-  commit();
-  notify('Ордер отменён', `${o.pair} · средства возвращены`, 'warn');
+  const o = S.orders.find(x => x.id === id || String(x.id) === String(id));
+  if (!o) return;
+  S.orders = S.orders.filter(x => x !== o);        // оптимистично убираем
+  emit('change', S);
+  sb.rpc('cancel_order', { p_order: Number(id) })
+    .then(() => { hydrate(); notify('Ордер отменён', `${o.pair} · средства возвращены`, 'warn'); })
+    .catch(e => { hydrate(); notify('Не удалось отменить', mapErr(e), 'err'); });
 }
 
-export function openOrders() { return S.orders.filter(o => o.status === 'open'); }
+export function openOrders() { return S.orders.filter(o => o.status === 'open' || o.status === 'partially_filled'); }
 
-/** Проверка лимитных ордеров на каждом тике рынка. */
-export function matchLimitOrders() {
-  if (!S.orders.length) return;
-  let changed = false;
-  for (let i = S.orders.length - 1; i >= 0; i--) {
-    const o = S.orders[i];
-    if (o.status !== 'open') continue;
-    const p = market.pairPrice(o.pair);
-    const crosses = o.side === 'buy' ? p <= o.price : p >= o.price;
-    if (!crosses) continue;
-    settleFill(o, o.qty, o.price, CONFIG.makerFee);
-    S.orders.splice(i, 1);
-    changed = true;
-    notify('Лимитный ордер исполнен', `${o.pair} @ ${o.price.toPrecision(6)}`, 'ok');
-  }
-  if (changed) commit();
-}
+/** Совмещение лимитных заявок происходит на сервере при размещении. */
+export function matchLimitOrders() { /* серверный матчинг, клиенту делать нечего */ }
 
-/* ── Earn ─────────────────────────────────────────────────────────────── */
+/* ── Доходность ───────────────────────────────────────────────────────── */
 
 export function earnSubscribe(product, amount) {
-  debit(product.asset, amount);
+  ensureFunds(product.asset, amount);
+  optDebit(product.asset, amount);
   S.earn.unshift({
-    id: genId('ern'), asset: product.asset, amount,
-    apy: product.apy, kind: product.kind, term: product.term, since: Date.now(),
+    id: genId('ern'), asset: product.asset, amount, apy: product.apy,
+    kind: product.kind, term: product.term, since: Date.now(),
   });
-  addTx({ kind: 'earn', asset: product.asset, amount: -amount, note: `Размещено в «${product.kind}» ${product.apy}% годовых` });
-  commit();
-  notify('Средства размещены', `${fmtShort(amount)} ${product.asset} · ${product.apy}% годовых`, 'ok');
+  emit('change', S);
+  notify('Средства размещены', `${amount} ${product.asset} · ${product.apy}% годовых`, 'ok');
+
+  sb.rpc('earn_subscribe', {
+    p_asset: product.asset, p_amount: sb.toMinor(product.asset, amount),
+    p_apy: product.apy, p_product: product.kind, p_term: product.term,
+  }).then(() => hydrate())
+    .catch(e => { hydrate(); notify('Не удалось разместить', mapErr(e), 'err'); });
 }
 
 export function earnRedeem(id) {
-  const i = S.earn.findIndex(e => e.id === id);
-  if (i < 0) return;
-  const e = S.earn[i];
+  const e = S.earn.find(x => x.id === id || String(x.id) === String(id));
+  if (!e) return;
+  S.earn = S.earn.filter(x => x !== e);
   const days = (Date.now() - e.since) / 86_400_000;
   const interest = e.amount * (e.apy / 100) * (days / 365);
-  credit(e.asset, e.amount + interest);
-  S.earn.splice(i, 1);
-  addTx({ kind: 'reward', asset: e.asset, amount: e.amount + interest, note: `Возврат из «${e.kind}» + доход ${fmtShort(interest)}` });
-  commit();
-  notify('Средства возвращены', `+${fmtShort(e.amount + interest)} ${e.asset}`, 'ok');
+  optCredit(e.asset, e.amount + interest);
+  emit('change', S);
+  notify('Средства возвращены', `+${e.asset}`, 'ok');
+
+  sb.rpc('earn_redeem', { p_id: Number(id) })
+    .then(() => hydrate())
+    .catch(err => { hydrate(); notify('Не удалось вернуть', mapErr(err), 'err'); });
 }
 
 export function earnPositions() { return S.earn; }
 
-/** Накопленный доход по всем позициям Earn. */
 export function earnAccrued() {
   return S.earn.reduce((s, e) => {
     const days = (Date.now() - e.since) / 86_400_000;
@@ -486,53 +470,76 @@ export function earnAccrued() {
   }, 0);
 }
 
-/* ── Прочее ───────────────────────────────────────────────────────────── */
+/* ── Избранное и настройки (клиентские предпочтения) ──────────────────── */
 
 export function toggleWatch(id) {
   const i = S.watchlist.indexOf(id);
   if (i >= 0) S.watchlist.splice(i, 1); else S.watchlist.push(id);
-  commit();
+  savePrefs(); emit('change', S);
 }
 export function isWatched(id) { return S.watchlist.includes(id); }
 
-export function updateSettings(patch) { Object.assign(S.settings, patch); commit(); }
-export function updateUser(patch) { Object.assign(S.user, patch); commit(); }
+export function updateSettings(patch) { Object.assign(S.settings, patch); savePrefs(); emit('change', S); }
+
+/** Правка профиля: имя и антифишинг-код уходят в базу, прочее локально. */
+export function updateUser(patch) {
+  Object.assign(S.user, patch);
+  emit('change', S);
+  const uid = sb.currentUser()?.id;
+  if (!uid) return;
+  const db = {};
+  if ('name' in patch) db.display_name = patch.name;
+  if ('antiPhishing' in patch) db.anti_phishing = patch.antiPhishing;
+  if (Object.keys(db).length) {
+    sb.update('profiles', { id: `eq.${uid}` }, db).then(() => session.refresh()).catch(() => {});
+  }
+}
+
+/* ── Ключи API (демонстрационные, только в браузере) ──────────────────── */
 
 export function createApiKey(label) {
   const key = { id: genId('key'), label, key: pick(HEX, 32), secret: pick(HEX, 48), created: Date.now(), perms: ['read'] };
-  S.apiKeys.unshift(key);
-  commit();
-  notify('API-ключ создан', 'Секрет показывается один раз (демо).', 'ok');
+  S.apiKeys.unshift(key); savePrefs(); emit('change', S);
+  notify('API-ключ создан', 'Секрет показывается один раз.', 'ok');
   return key;
 }
 export function revokeApiKey(id) {
-  S.apiKeys = S.apiKeys.filter(k => k.id !== id);
-  commit();
+  S.apiKeys = S.apiKeys.filter(k => k.id !== id); savePrefs(); emit('change', S);
   notify('Ключ отозван', '', 'warn');
 }
 
-/** Экспорт/импорт состояния песочницы. */
-export function exportState() { return JSON.stringify(S, null, 2); }
-export function importState(json) {
-  const parsed = JSON.parse(json);
-  if (!parsed || parsed.v !== 1) throw new Error('Неподдерживаемый формат');
-  S = { ...blank(), ...parsed };
-  commit();
-  notify('Состояние импортировано', '', 'ok');
+/* ── Вход/выход (управление — на стороне гейта и сессии) ───────────────── */
+
+export function signIn() { location.hash = '#/enter'; }
+export async function signOut() {
+  try { await session.signOut(); } finally { location.hash = '#/enter'; }
 }
 
-function fmtShort(n) {
-  if (!Number.isFinite(n)) return '—';
-  if (Math.abs(n) >= 1000) return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
-  if (Math.abs(n) >= 1) return n.toFixed(4).replace(/\.?0+$/, '');
-  return n.toPrecision(4);
+/** Сбрасывает клиентские предпочтения (баланс живёт в базе — его не трогаем). */
+export function resetDemo() {
+  Object.assign(S, blankPrefs());
+  savePrefs(); emit('change', S);
+  notify('Настройки сброшены', 'Локальные предпочтения очищены.', 'warn');
+}
+
+export function exportState() {
+  return JSON.stringify({
+    balances: S.avail, locked: S.locked, orders: S.orders,
+    transactions: S.transactions, earn: S.earn, prefs: {
+      watchlist: S.watchlist, settings: S.settings,
+    },
+  }, null, 2);
+}
+export function importState() {
+  notify('Импорт недоступен', 'Данные счёта хранятся на сервере.', 'warn');
 }
 
 /* ── Инициализация ────────────────────────────────────────────────────── */
-load();
+if (session.isSignedIn()) { boundUid = sb.currentUser()?.id || null; hydrate(); }
+
 export const store = {
-  on, getState, isSignedIn, signIn, signOut, resetDemo,
-  balance, available, holdings, portfolioValue, portfolioChange24, allocation,
+  on, getState, isSignedIn, signIn, signOut, resetDemo, hydrate,
+  balance, lockedOf, available, holdings, portfolioValue, portfolioChange24, allocation,
   transactions, depositAddress, deposit, withdraw, withdrawFee,
   convert, quoteConvert, buyWithCard,
   placeOrder, cancelOrder, openOrders, matchLimitOrders,
