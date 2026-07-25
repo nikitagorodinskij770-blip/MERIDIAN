@@ -1,289 +1,371 @@
-/* Главная — витрина: герой, живой тикер, рынки, преимущества, шаги, CTA. */
+/* Главная — публичная витрина площадки.
 
-import { BRAND, ASSET_MAP } from '../seed.js';
+   Единственная страница, которую видно до входа наравне с формой и правовыми
+   документами. Её работа — не «продать», а показать, что площадка живая:
+   котировки идут прямо здесь, цифры настоящие, устройство объяснено словами,
+   а не обещаниями. Поэтому первым экраном идёт рынок, а не картинка.
+
+   Порядок блоков подчинён вопросу читателя, который меняется по мере
+   прокрутки: «что это» → «правда ли живое» → «что тут торгуется» →
+   «что сейчас происходит» → «как устроено» → «можно ли верить» → «начать». */
+
+import { ASSET_MAP, BRAND } from '../seed.js';
 import * as market from '../market.js';
-import * as store from '../store.js';
-import { h, qs, qsa, coinIcon, ICONS, changeBadge, assetCell } from '../ui.js';
-import { fmtPrice, fmtPct, fmtCompact, dirClass, esc, fmtNum } from '../format.js';
-import { drawSparkline } from '../charts.js';
+import * as session from '../core/session.js';
+import { h, qs, qsa, coinIcon, ICONS, mark } from '../ui.js';
+import { fmtPrice, fmtPct, fmtCompact, fmtNum, dirClass, priceDecimals, esc } from '../format.js';
+import { drawSparkline, drawArea } from '../charts.js';
 
-const FEATURES = [
-  { ic: 'bolt',   t: 'Исполнение за 12 мс',      d: 'Матчинг-движок с приоритетом «цена-время». Стакан обновляется в реальном времени, проскальзывание под контролем.' },
-  { ic: 'shield', t: 'Кастоди и сегрегация',     d: 'MPC-хранение, 95% активов в холодном контуре, посуточная сверка резервов и публичный proof-of-reserves.' },
-  { ic: 'globe',  t: '38 инструментов',           d: 'Криптовалюты, стейблкоины, 10 фиатных валют и драгоценные металлы — в одном счёте, без внешних переводов.' },
-  { ic: 'trend',  t: 'Профессиональные графики',  d: 'Свечи, объёмы, стакан и лента сделок. Лимитные и рыночные ордера, история исполнений.' },
-  { ic: 'lock',   t: 'Безопасность по умолчанию', d: '2FA, белые списки адресов, антифишинг-код, журнал сессий и подтверждение каждого вывода.' },
-  { ic: 'layers', t: 'API для интеграций',        d: 'REST и WebSocket, ключи с гранулярными правами, лимиты и идемпотентность запросов.' },
-];
+/* Лента: широкий набор, чтобы строка не выглядела короткой */
+const TAPE = ['BTC', 'ETH', 'SOL', 'XRP', 'TON', 'BNB', 'ADA', 'AVAX', 'LINK', 'DOT', 'LTC', 'XAU'];
 
-const STEPS = [
-  { t: 'Создайте счёт', d: 'Регистрация занимает минуту. Базовые операции доступны сразу, верификация — по мере роста лимитов.' },
-  { t: 'Пополните баланс', d: 'Криптовалютой в 20+ сетях, картой или банковским переводом в десяти валютах.' },
-  { t: 'Торгуйте и обменивайте', d: 'Мгновенный обмен в один клик или спот-терминал с полным стаканом заявок.' },
+/* Витрина рынка на главной */
+const BOARD = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'TON', 'ADA', 'AVAX'];
+
+const PILLARS = [
+  ['shieldLock', 'Двойная запись',
+   'Баланс — следствие журнала проводок, а не поле в таблице. Операция, которая не сходится, отклоняется до записи, а не после неё.'],
+  ['bolt', 'Приоритет «цена — время»',
+   'Сделка проходит по цене заявки, уже стоявшей в книге. Агрессор не получает цену лучше выставленной — очередь честная.'],
+  ['trend', 'Сводная цена шести площадок',
+   'Медиана, взвешенная по обороту, с отбраковкой выбросов. Одна биржа с тонкой ликвидностью не сдвинет ваш курс.'],
+  ['lock', 'Доступ решает хранилище',
+   'Права проверяются в базе, а не в интерфейсе. Увидеть чужой счёт нельзя даже с полным доступом к коду страницы.'],
 ];
 
 export default {
-  title: 'Обменник цифровых активов',
+  title: 'Опорный курс цифровых активов',
   auth: false,
+  public: true,
 
   render() {
-    const top = market.topAssets(8, 'crypto');
-    const { gainers, losers } = market.movers(4);
-    const tickerAssets = market.topAssets(14, 'crypto');
+    const signed = session.isSignedIn();
+    const cta = signed
+      ? { href: '#/markets', label: 'В терминал' }
+      : { href: '#/enter/signup', label: 'Открыть счёт' };
 
-    const el = h(`<div>
+    const el = h(`<div class="home">
 
-      <!-- ── Герой ─────────────────────────────────────────────── -->
-      <section class="hero">
-        <div class="container hero-grid">
-          <div>
-            <span class="eyebrow">Лицензированная площадка · ${esc(BRAND.stats.countries)} стран</span>
-            <h1 style="margin-top:14px">Обменивайте цифровые активы<br><span class="accent">по опорному курсу</span></h1>
-            <p class="lead">${esc(BRAND.name)} — обменник институционального уровня: спот-терминал, мгновенный
-              обмен, фиатные шлюзы и доходные продукты в едином счёте.</p>
-            <div class="cta-row">
-              <a class="btn btn-primary btn-lg" href="#/signup">Открыть счёт</a>
+      <!-- ═══ Первый экран ═══════════════════════════════════════ -->
+      <section class="hm-hero">
+        <div class="container hm-hero-in">
+
+          <div class="hm-hero-copy">
+            <span class="eyebrow">${esc(BRAND.legalName)} · Таллин</span>
+            <h1>Опорный курс<br>цифровых активов</h1>
+            <p class="lead">Спот-терминал, мгновенный обмен и фиатные шлюзы в одном счёте.
+               Котировки сводятся с шести площадок, средства учитываются двойной записью.</p>
+
+            <div class="hm-cta">
+              <a class="btn btn-primary btn-lg" href="${cta.href}">
+                ${cta.label}${ICONS.chevronRight}</a>
               <a class="btn btn-ghost btn-lg" href="#/markets">Смотреть рынки</a>
             </div>
-            <div class="trust-row">
-              <span>${ICONS.shield} <b>Proof of Reserves</b></span>
-              <span>Аптайм <b>${BRAND.stats.uptime}%</b></span>
-              <span>Оборот 24ч <b>${fmtCompact(BRAND.stats.volume24h)}</b></span>
-              <span><b>${fmtNum(BRAND.stats.users / 1e6, 2)} млн</b> клиентов</span>
-            </div>
+
+            <ul class="hm-trust">
+              <li>${ICONS.check}Ввод средств без комиссии</li>
+              <li>${ICONS.check}Вывод в восьми сетях</li>
+              <li>${ICONS.check}Журнал операций с аудитом</li>
+            </ul>
           </div>
 
-          <!-- Мини-виджет обмена -->
-          <div class="hero-panel">
-            <div class="row between" style="margin-bottom:16px">
-              <b style="color:var(--ink)">Быстрый обмен</b>
-              <span class="badge badge-brand">курс live</span>
+          <!-- Живой пульс: настоящий график и настоящая цена -->
+          <figure class="hm-pulse card" data-pulse>
+            <figcaption class="hm-pulse-head">
+              <span class="hm-pulse-sym">${coinIcon('BTC', 'sm')}<b>BTC / USDT</b></span>
+              <span class="hm-live"><span class="feed-dot"></span>живые котировки</span>
+            </figcaption>
+            <div class="hm-pulse-px">
+              <span class="v mono" data-px>—</span>
+              <span class="c mono" data-ch>—</span>
             </div>
-            <div class="field">
-              <label>Отдаёте</label>
-              <div class="amount-input">
-                <input type="text" inputmode="decimal" value="1000" data-from-amt>
-                <span class="suffix">${coinIcon('USDT','sm')} USDT</span>
-              </div>
+            <div class="hm-pulse-chart"><canvas data-area></canvas></div>
+            <div class="hm-pulse-foot">
+              <div><span>Максимум 24ч</span><b class="mono" data-hi>—</b></div>
+              <div><span>Минимум 24ч</span><b class="mono" data-lo>—</b></div>
+              <div><span>Оборот 24ч</span><b class="mono" data-vol>—</b></div>
             </div>
-            <div class="field">
-              <label>Получаете</label>
-              <div class="amount-input">
-                <input type="text" data-to-amt readonly style="color:var(--ink)">
-                <span class="suffix">${coinIcon('BTC','sm')} BTC</span>
-              </div>
-            </div>
-            <div class="rate-line"><span>Курс</span><b data-rate>—</b></div>
-            <div class="rate-line"><span>Комиссия 0.35%</span><b data-fee>—</b></div>
-            <a class="btn btn-primary btn-block btn-lg" href="#/convert" style="margin-top:12px">Перейти к обмену</a>
-            <p class="help center" style="margin-top:10px">Предварительный расчёт. Средства спишутся после подтверждения.</p>
-          </div>
+          </figure>
+        </div>
+
+        <!-- Бегущая строка котировок -->
+        <div class="hm-tape" data-tape>
+          <div class="hm-tape-row" data-taperow></div>
         </div>
       </section>
 
-      <!-- ── Бегущая строка ────────────────────────────────────── -->
-      <div class="ticker">
-        <div class="ticker-track" data-ticker></div>
-      </div>
-
-      <!-- ── Показатели ────────────────────────────────────────── -->
-      <section class="section-tight">
-        <div class="container stat-band">
-          <div class="tile stat"><span class="k">Оборот за 24 часа</span><span class="v">${fmtCompact(BRAND.stats.volume24h)}</span></div>
-          <div class="tile stat"><span class="k">Клиентов</span><span class="v">${fmtNum(BRAND.stats.users / 1e6, 2)}M</span></div>
-          <div class="tile stat"><span class="k">Инструментов</span><span class="v">38</span></div>
-          <div class="tile stat"><span class="k">Аптайм за год</span><span class="v">${BRAND.stats.uptime}%</span></div>
-        </div>
+      <!-- ═══ Витрина рынка ══════════════════════════════════════ -->
+      <section class="container hm-sec">
+        <header class="hm-sec-head">
+          <div>
+            <span class="eyebrow">Рынки</span>
+            <h2>Что торгуется прямо сейчас</h2>
+          </div>
+          <a class="btn btn-ghost btn-sm" href="#/markets">Все инструменты${ICONS.chevronRight}</a>
+        </header>
+        <div class="hm-board" data-board></div>
       </section>
 
-      <!-- ── Рынки ─────────────────────────────────────────────── -->
-      <section class="section">
-        <div class="container">
-          <div class="sec-head">
+      <!-- ═══ Сводка рынка ═══════════════════════════════════════ -->
+      <section class="container hm-sec">
+        <header class="hm-sec-head">
+          <div>
+            <span class="eyebrow">Сводка</span>
+            <h2>Что происходит на рынке</h2>
+            <p class="hm-sec-note">Считается из живых котировок площадки и обновляется вместе с ними.</p>
+          </div>
+        </header>
+        <div class="hm-wire" data-wire></div>
+      </section>
+
+      <!-- ═══ Устройство ═════════════════════════════════════════ -->
+      <section class="hm-band">
+        <div class="container hm-sec">
+          <header class="hm-sec-head">
             <div>
-              <h2>Рынки в реальном времени</h2>
-              <p class="muted">Топ инструментов по обороту. Цены обновляются каждые полторы секунды.</p>
+              <span class="eyebrow">Устройство</span>
+              <h2>Почему этому можно верить</h2>
+              <p class="hm-sec-note">Четыре решения приняты в основании — и потому не зависят
+                 от добросовестности интерфейса.</p>
             </div>
-            <a class="btn btn-ghost" href="#/markets">Все 38 активов</a>
-          </div>
-          <div class="card table-wrap">
-            <table class="tbl">
-              <thead><tr>
-                <th>Актив</th><th class="num">Цена</th><th class="num">24ч</th>
-                <th class="num hide-sm">Объём 24ч</th><th class="num hide-sm">Капитализация</th>
-                <th class="hide-xs">7 дней</th><th></th>
-              </tr></thead>
-              <tbody data-mkt>
-                ${top.map(a => `
-                  <tr data-goto="#/trade/${a.id}-USDT">
-                    <td>${assetCell(a.id)}</td>
-                    <td class="num" data-px="${a.id}">${fmtPrice(market.price(a.id))}</td>
-                    <td class="num" data-chg="${a.id}">${changeBadge(market.change24(a.id))}</td>
-                    <td class="num hide-sm" data-vol="${a.id}">${fmtCompact(market.volume24(a.id))}</td>
-                    <td class="num hide-sm">${fmtCompact(a.mcap)}</td>
-                    <td class="hide-xs"><canvas class="spark" data-spark="${a.id}"></canvas></td>
-                    <td class="num"><a class="btn btn-soft btn-sm" href="#/trade/${a.id}-USDT">Торговать</a></td>
-                  </tr>`).join('')}
-              </tbody>
-            </table>
+          </header>
+          <div class="hm-pillars">
+            ${PILLARS.map(([ic, t, d], i) => `
+              <article class="hm-pillar">
+                <span class="hm-pillar-n mono">${String(i + 1).padStart(2, '0')}</span>
+                <span class="hm-pillar-ic">${ICONS[ic] || ''}</span>
+                <h3>${esc(t)}</h3>
+                <p>${esc(d)}</p>
+              </article>`).join('')}
           </div>
         </div>
       </section>
 
-      <!-- ── Лидеры движения ───────────────────────────────────── -->
-      <section class="section-tight">
-        <div class="container g-2">
-          ${moverCard('Лидеры роста', gainers, 'up')}
-          ${moverCard('Лидеры падения', losers, 'down')}
+      <!-- ═══ Показатели ═════════════════════════════════════════ -->
+      <section class="container hm-sec">
+        <div class="hm-stats">
+          <div class="hm-stat"><b>38</b><span>инструментов</span></div>
+          <div class="hm-stat"><b>6</b><span>бирж в оракуле</span></div>
+          <div class="hm-stat"><b>0.10%</b><span>комиссия мейкера</span></div>
+          <div class="hm-stat"><b>8</b><span>сетей для вывода</span></div>
         </div>
       </section>
 
-      <!-- ── Преимущества ──────────────────────────────────────── -->
-      <section class="section">
-        <div class="container">
-          <div class="sec-head"><div>
-            <span class="eyebrow">Платформа</span>
-            <h2 style="margin-top:8px">Инфраструктура, а не витрина</h2>
-            <p class="muted">Всё, что нужно и частному клиенту, и торговому столу.</p>
-          </div></div>
-          <div class="feature-grid">
-            ${FEATURES.map(f => `
-              <div class="feature">
-                <div class="ic">${ICONS[f.ic]}</div>
-                <h4>${esc(f.t)}</h4>
-                <p>${esc(f.d)}</p>
-              </div>`).join('')}
-          </div>
-        </div>
-      </section>
-
-      <!-- ── Как начать ────────────────────────────────────────── -->
-      <section class="section-tight">
-        <div class="container">
-          <div class="sec-head"><div><h2>Три шага до первой сделки</h2></div></div>
-          <div class="steps">
-            ${STEPS.map(s => `<div class="step"><h4>${esc(s.t)}</h4><p class="muted">${esc(s.d)}</p></div>`).join('')}
-          </div>
-        </div>
-      </section>
-
-      <!-- ── CTA ───────────────────────────────────────────────── -->
-      <section class="section">
-        <div class="container">
-          <div class="cta-band">
-            <h2>Начните работу с MERIDIAN</h2>
-            <p>Открытие счёта занимает минуту. Спот-терминал, мгновенный обмен и фиатные
-               шлюзы доступны сразу после регистрации.</p>
-            <div class="row gap-3" style="justify-content:center;margin-top:24px;flex-wrap:wrap">
-              <a class="btn btn-primary btn-lg" href="#/signup">Открыть счёт</a>
-              <a class="btn btn-ghost btn-lg" href="#/legal">Правовой центр</a>
-            </div>
+      <!-- ═══ Призыв ═════════════════════════════════════════════ -->
+      <section class="container hm-sec">
+        <div class="hm-final">
+          <div class="hm-final-mark">${mark('lg', { href: null })}</div>
+          <h2>Счёт открывается за минуту</h2>
+          <p>Почта и пароль — и терминал доступен. Верификация нужна только для вывода средств.</p>
+          <div class="hm-cta">
+            <a class="btn btn-primary btn-lg" href="${cta.href}">${cta.label}</a>
+            <a class="btn btn-ghost btn-lg" href="#/legal/terms">Условия обслуживания</a>
           </div>
         </div>
       </section>
     </div>`);
 
-    /* ── Тикер ── */
-    const track = qs('[data-ticker]', el);
-    const tickerHtml = tickerAssets.map(a => `
-      <span class="ticker-item" data-tick="${a.id}">
-        ${coinIcon(a.id, 'sm')}
-        <span class="sym">${a.id}</span>
-        <span class="px">${fmtPrice(market.price(a.id))}</span>
-        <span class="pct ${dirClass(market.change24(a.id))}">${fmtPct(market.change24(a.id))}</span>
-      </span>`).join('');
-    track.innerHTML = tickerHtml + tickerHtml;   // дублируем для бесшовной прокрутки
+    /* ── Бегущая строка ──
+       Содержимое дублируется: вторая копия въезжает следом за первой,
+       поэтому шов не виден и лента выглядит бесконечной. */
+    function buildTape() {
+      const cell = id => {
+        const chg = market.change24(id);
+        return `<span class="hm-tape-cell">
+          <b>${id}</b>
+          <span class="mono px">${fmtPrice(market.price(id))}</span>
+          <span class="mono ch ${dirClass(chg)}">${fmtPct(chg)}</span>
+        </span>`;
+      };
+      const once = TAPE.map(cell).join('');
+      qs('[data-taperow]', el).innerHTML = once + once;
+    }
 
-    /* ── Мини-конвертер ── */
-    const fromInp = qs('[data-from-amt]', el);
-    const toInp = qs('[data-to-amt]', el);
-    const rateEl = qs('[data-rate]', el);
-    const feeEl = qs('[data-fee]', el);
+    /* ── Пульс ── */
+    const areaCanvas = qs('[data-area]', el);
 
-    const recalc = () => {
-      const amt = parseFloat(String(fromInp.value).replace(',', '.')) || 0;
-      const q = store.quoteConvert('USDT', 'BTC', amt);
-      toInp.value = amt > 0 ? q.net.toFixed(8) : '';
-      rateEl.textContent = '1 BTC = ' + fmtPrice(market.rate('BTC', 'USDT'), '') + ' USDT';
-      feeEl.textContent = amt > 0 ? q.fee.toFixed(8) + ' BTC' : '—';
+    function paintPulse() {
+      const p = market.price('BTC');
+      const chg = market.change24('BTC');
+      const dec = priceDecimals(p);
+      qs('[data-px]', el).textContent = fmtNum(p, dec, dec);
+      const c = qs('[data-ch]', el);
+      c.textContent = fmtPct(chg);
+      c.className = 'c mono ' + dirClass(chg);
+      qs('[data-hi]', el).textContent = fmtPrice(market.high24('BTC'));
+      qs('[data-lo]', el).textContent = fmtPrice(market.low24('BTC'));
+      qs('[data-vol]', el).textContent = '$' + fmtCompact(market.volume24('BTC'));
+
+      const series = market.sparkline('BTC');
+      if (series.length > 1) {
+        const css = getComputedStyle(document.documentElement);
+        const col = css.getPropertyValue(chg >= 0 ? '--up' : '--down').trim();
+        drawArea(areaCanvas, series, { color: col });
+      }
+    }
+
+    /* ── Витрина ── */
+    function paintBoard() {
+      qs('[data-board]', el).innerHTML = BOARD.map(id => {
+        const a = ASSET_MAP[id];
+        const chg = market.change24(id);
+        return `<a class="hm-row" href="#/trade/${id}-USDT">
+          <span class="hm-row-a">${coinIcon(id, 'sm')}
+            <span class="hm-row-name"><b>${id}</b><i>${esc(a?.name || '')}</i></span></span>
+          <span class="hm-row-spark"><canvas data-spark="${id}"></canvas></span>
+          <span class="hm-row-px mono">${fmtPrice(market.price(id))}</span>
+          <span class="hm-row-ch mono ${dirClass(chg)}">${fmtPct(chg)}</span>
+        </a>`;
+      }).join('');
+      paintSparks();
+    }
+
+    function paintSparks() {
+      const css = getComputedStyle(document.documentElement);
+      const up = css.getPropertyValue('--up').trim();
+      const down = css.getPropertyValue('--down').trim();
+      qsa('[data-spark]', el).forEach(cv => {
+        const id = cv.dataset.spark;
+        const data = market.sparkline(id);
+        if (data.length > 1) drawSparkline(cv, data, market.change24(id) >= 0 ? up : down);
+      });
+    }
+
+    /* ── Сводка ──
+       Это не новости: здесь нет ни одного утверждения, которого нет в самих
+       котировках. Каждая строка — вычисленный факт, и рядом сказано, из чего
+       он посчитан. Придуманных поводов и заголовков тут быть не должно. */
+    function paintWire() {
+      const ids = Object.keys(ASSET_MAP).filter(id =>
+        ASSET_MAP[id]?.type === 'crypto' && market.price(id) > 0);
+      if (!ids.length) return;
+
+      const byChg = [...ids].sort((a, b) => market.change24(b) - market.change24(a));
+      const top = byChg[0];
+      const bottom = byChg[byChg.length - 1];
+
+      const nearHigh = ids.map(id => {
+        const hi = market.high24(id), lo = market.low24(id), p = market.price(id);
+        return { id, pos: hi > lo ? (p - lo) / (hi - lo) : 0 };
+      }).sort((a, b) => b.pos - a.pos)[0];
+
+      const widest = ids.map(id => {
+        const hi = market.high24(id), lo = market.low24(id);
+        return { id, span: lo > 0 ? (hi - lo) / lo * 100 : 0 };
+      }).sort((a, b) => b.span - a.span)[0];
+
+      const rising = ids.filter(id => market.change24(id) > 0).length;
+      const share = Math.round(rising / ids.length * 100);
+
+      const items = [
+        {
+          tag: 'Лидер роста', ic: 'trend', dir: 'up',
+          title: `${top} прибавляет ${fmtPct(market.change24(top))} за сутки`,
+          body: `${ASSET_MAP[top]?.name || top} торгуется по ${fmtPrice(market.price(top))}. ` +
+                `Лучшая динамика среди ${ids.length} инструментов витрины.`,
+          href: `#/trade/${top}-USDT`,
+        },
+        market.change24(bottom) < 0 && {
+          tag: 'Под давлением', ic: 'trendDown', dir: 'down',
+          title: `${bottom} теряет ${fmtPct(Math.abs(market.change24(bottom)))}`,
+          body: `${ASSET_MAP[bottom]?.name || bottom} по ${fmtPrice(market.price(bottom))} — ` +
+                `слабейший результат за сутки.`,
+          href: `#/trade/${bottom}-USDT`,
+        },
+        {
+          tag: 'Ширина рынка', ic: 'chart', dir: share >= 50 ? 'up' : 'down',
+          title: `${share}% инструментов в плюсе`,
+          body: `Растут ${rising} из ${ids.length}. Считается по тем же котировкам, ` +
+                `что идут в терминал, и обновляется на каждом тике.`,
+          href: '#/markets',
+        },
+        widest && widest.span > 0 && {
+          tag: 'Волатильность', ic: 'bolt', dir: 'neutral',
+          title: `Самый широкий диапазон у ${widest.id}`,
+          body: `Между суточным минимумом и максимумом — ${widest.span.toFixed(1)}%. ` +
+                `Для лимитной заявки это более далёкие уровни исполнения.`,
+          href: `#/trade/${widest.id}-USDT`,
+        },
+        nearHigh && {
+          tag: 'У максимума', ic: 'layers', dir: 'up',
+          title: `${nearHigh.id} держится у верхней границы суток`,
+          body: `Цена в ${Math.round(nearHigh.pos * 100)}% суточного диапазона, считая от ` +
+                `минимума — ближе к максимуму, чем остальные.`,
+          href: `#/trade/${nearHigh.id}-USDT`,
+        },
+      ].filter(Boolean);
+
+      qs('[data-wire]', el).innerHTML = items.map(w => `
+        <a class="hm-wire-item" href="${w.href}">
+          <span class="hm-wire-ic ${w.dir}">${ICONS[w.ic] || ICONS.chart}</span>
+          <span class="hm-wire-body">
+            <span class="hm-wire-tag">${esc(w.tag)}</span>
+            <b>${esc(w.title)}</b>
+            <span class="hm-wire-text">${esc(w.body)}</span>
+          </span>
+        </a>`).join('');
+    }
+
+    /* ── Появление по мере прокрутки ──
+       Не украшение: движение подсказывает, что ниже есть ещё содержимое.
+       При отключённых анимациях всё видно сразу. */
+    function observeReveal() {
+      const targets = qsa('.hm-sec, .hm-pillar, .hm-row, .hm-wire-item', el);
+      if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || !window.IntersectionObserver) {
+        targets.forEach(t => t.classList.add('in'));
+        return null;
+      }
+      targets.forEach(t => t.classList.add('reveal'));
+      const io = new IntersectionObserver((entries, obs) => {
+        entries.forEach(e => {
+          if (!e.isIntersecting) return;
+          e.target.classList.add('in');
+          obs.unobserve(e.target);
+        });
+      }, { rootMargin: '0px 0px -8% 0px', threshold: .08 });
+      targets.forEach(t => io.observe(t));
+      return io;
+    }
+
+    /* Полная перерисовка — только при монтировании и смене темы.
+       На тике обновляем числа: перерисовка витрины сбрасывала бы наведение
+       и заставляла браузер заново раскладывать страницу. */
+    function paintNumbers() {
+      buildTape();
+      paintPulse();
+      BOARD.forEach(id => {
+        const row = qs(`[data-spark="${id}"]`, el)?.closest('.hm-row');
+        if (!row) return;
+        const chg = market.change24(id);
+        qs('.hm-row-px', row).textContent = fmtPrice(market.price(id));
+        const c = qs('.hm-row-ch', row);
+        c.textContent = fmtPct(chg);
+        c.className = 'hm-row-ch mono ' + dirClass(chg);
+      });
+      paintSparks();
+      paintWire();
+    }
+
+    let io = null;
+    el._mounted = () => {
+      buildTape(); paintPulse(); paintBoard(); paintWire();
+      requestAnimationFrame(() => { paintPulse(); paintSparks(); });
+      io = observeReveal();
     };
-    fromInp.addEventListener('input', recalc);
-    recalc();
 
-    /* ── Живое обновление ── */
-    const paint = () => {
-      qsa('[data-px]', el).forEach(td => {
-        td.textContent = fmtPrice(market.price(td.dataset.px));
-      });
-      qsa('[data-chg]', el).forEach(td => {
-        td.innerHTML = changeBadge(market.change24(td.dataset.chg));
-      });
-      qsa('[data-vol]', el).forEach(td => {
-        td.textContent = fmtCompact(market.volume24(td.dataset.vol));
-      });
-      qsa('[data-tick]', el).forEach(sp => {
-        const id = sp.dataset.tick;
-        qs('.px', sp).textContent = fmtPrice(market.price(id));
-        const p = qs('.pct', sp);
-        p.textContent = fmtPct(market.change24(id));
-        p.className = 'pct ' + dirClass(market.change24(id));
-      });
-      qsa('[data-mv]', el).forEach(n => {
-        const id = n.dataset.mv;
-        qs('.px', n).textContent = fmtPrice(market.price(id));
-        const p = qs('.pct', n);
-        p.textContent = fmtPct(market.change24(id));
-        p.className = 'pct ' + dirClass(market.change24(id));
-      });
-      recalc();
-      drawSparks();
-    };
-
-    const drawSparks = () => {
-      qsa('[data-spark]', el).forEach(c => {
-        const id = c.dataset.spark;
-        drawSparkline(c, market.sparkline(id));
-      });
-    };
-
-    requestAnimationFrame(drawSparks);
-    const off = market.onTick(paint);
-
-    /* ── Действия ── */
-    qsa('[data-start]', el).forEach(b => b.addEventListener('click', () => {
-      store.signIn();
-      location.hash = '#/dashboard';
-    }));
-    qsa('[data-goto]', el).forEach(tr => tr.addEventListener('click', e => {
-      if (e.target.closest('a')) return;
-      location.hash = tr.dataset.goto;
-    }));
-
-    const onResize = () => drawSparks();
+    const offTick = market.onTick(paintNumbers);
+    const onResize = () => { paintPulse(); paintSparks(); };
+    const onTheme = () => { paintPulse(); paintSparks(); };
     window.addEventListener('resize', onResize);
+    window.addEventListener('themechange', onTheme);
 
-    el._cleanup = () => { off(); window.removeEventListener('resize', onResize); };
+    el._cleanup = () => {
+      offTick();
+      io?.disconnect();
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('themechange', onTheme);
+    };
+
     return el;
   },
 };
-
-/* Карточка лидеров роста/падения */
-function moverCard(title, list, kind) {
-  return `<div class="card">
-    <div class="card-hd"><h4>${title}</h4>
-      <span class="badge ${kind === 'up' ? 'badge-up' : 'badge-down'}">24 часа</span></div>
-    <div>
-      ${list.map(a => `
-        <div class="balance-row" data-mv="${a.id}" style="cursor:pointer"
-             onclick="location.hash='#/trade/${a.id}-USDT'">
-          <div class="asset-cell">${coinIcon(a.id)}
-            <div><div class="name">${a.id}</div>
-                 <div class="sym">${esc(ASSET_MAP[a.id].name)}</div></div></div>
-          <div style="text-align:right">
-            <div class="mono px">${fmtPrice(market.price(a.id))}</div>
-            <div class="pct ${dirClass(market.change24(a.id))}">${fmtPct(market.change24(a.id))}</div>
-          </div>
-        </div>`).join('')}
-    </div>
-  </div>`;
-}

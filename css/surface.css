@@ -1,137 +1,218 @@
 /* ============================================================================
-   MERIDIAN — фоновая среда и глубина.
+   MERIDIAN — фоновая среда, знак и первый экран.
 
-   Фон построен только на свете и тени: никаких сеток, орбит и геометрии.
-   Глубина создаётся тремя средствами, и все они работают на читаемость,
-   а не на украшение:
+   ФОН. Построен только на свете: ни сеток, ни орбит, ни фигур. Глубина
+   набирается четырьмя слоями, которые смещаются на разную долю от движения
+   курсора (переменные --px/--py пишет js/fx/depth.js). Разная скорость и
+   есть сигнал расстояния — так глаз определяет глубину в реальном мире.
 
-     1. Вертикальный градиент — задаёт «верх» и «низ» страницы, чтобы плоскость
-        не выглядела бесконечно ровной.
-     2. Мягкие пятна света — очень широкие радиальные градиенты малой
-        насыщенности. На глаз воспринимаются как рассеянный свет, а не как
-        объекты: у них нет различимого края.
-     3. Внутренняя тень по краям экрана — притеняет периферию и собирает
-        взгляд к центру, где живёт содержимое.
+     1. Основа      — вертикальный градиент, задаёт верх и низ. Не движется.
+     2. Дальний свет — очень широкие пятна. Смещение 6px: почти неподвижны.
+     3. Средний план — пятна плотнее и меньше. Смещение 18px.
+     4. Ближняя дымка — мягкое свечение у краёв. Смещение 40px.
 
-   Слой фиксирован (position: fixed) и потому не кончается вместе со страницей
-   и не прокручивается вместе с ней: скролл движет только содержимое.
+   Слои фиксированы (position: fixed), поэтому среда не кончается вместе со
+   страницей: сколько ни прокручивай, фон продолжается — отсюда ощущение,
+   что за содержимым есть пространство, а не дно.
    ============================================================================ */
 
-.bg-field{
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-bg);
-  pointer-events: none;
-  background:
-    /* Пятна света: широкие, с плавным затуханием — края неразличимы */
-    radial-gradient(1400px 900px at 12% -8%,  rgba(30, 89,255,.085), transparent 58%),
-    radial-gradient(1200px 800px at 92% 12%,  rgba(30, 89,255,.055), transparent 55%),
-    radial-gradient(1600px 1000px at 50% 118%, rgba(11, 18, 32,.075), transparent 62%),
-    /* Основа: холодный белый сверху, чуть плотнее снизу */
-    linear-gradient(180deg, #ffffff 0%, #fbfcfe 34%, #f4f7fb 72%, #eef2f8 100%);
-}
-
-/* Виньетка отдельным слоем: внутренняя тень по периметру.
-   box-shadow inset вместо градиента — тень одинаково ложится
-   на любое соотношение сторон, градиент пришлось бы подгонять. */
+.bg-field,
 .bg-grain{
   position: fixed;
-  inset: 0;
+  inset: -10vmax;              /* запас, чтобы смещённые слои не открывали край */
   z-index: var(--z-bg);
   pointer-events: none;
-  box-shadow:
-    inset 0  120px 180px -120px rgba(11,18,32,.10),
-    inset 0 -160px 220px -140px rgba(11,18,32,.14),
-    inset  180px 0 220px -200px rgba(11,18,32,.08),
-    inset -180px 0 220px -200px rgba(11,18,32,.08);
 }
 
-/* Содержимое поднимается над фоном */
+/* Основа: не двигается — это «бесконечно далеко» */
+.bg-field{
+  background:
+    linear-gradient(180deg, #ffffff 0%, #fbfcfe 30%, #f3f6fb 68%, #eaeff7 100%);
+}
+
+/* Дальний свет */
+.bg-field::before{
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(1500px 950px at 14% -6%,  rgba(30, 89,255,.10), transparent 60%),
+    radial-gradient(1300px 850px at 88% 10%,  rgba(30, 89,255,.06), transparent 58%),
+    radial-gradient(1700px 1050px at 52% 116%, rgba(11, 18, 32,.07), transparent 64%);
+  transform: translate3d(calc(var(--px, 0) * -6px), calc(var(--py, 0) * -6px), 0);
+  will-change: transform;
+}
+
+/* Средний план + ближняя дымка */
+.bg-field::after{
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(760px 560px at 78% 26%, rgba(30, 89,255,.075), transparent 62%),
+    radial-gradient(620px 480px at 22% 72%, rgba(168,121, 31,.05), transparent 60%);
+  transform: translate3d(calc(var(--px, 0) * -18px), calc(var(--py, 0) * -18px), 0);
+  will-change: transform;
+}
+
+/* Виньетка: притеняет периферию и собирает взгляд к центру.
+   box-shadow inset, а не градиент — тень одинаково ложится на любое
+   соотношение сторон, градиент пришлось бы подгонять под каждое. */
+.bg-grain{
+  box-shadow:
+    inset 0  140px 200px -140px rgba(11,18,32,.10),
+    inset 0 -180px 240px -150px rgba(11,18,32,.15),
+    inset  200px 0 240px -220px rgba(11,18,32,.08),
+    inset -200px 0 240px -220px rgba(11,18,32,.08);
+}
+
+/* Ближняя дымка отдельным слоем — движется сильнее всех */
+.bg-grain::after{
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(1100px 700px at 50% 0%, rgba(255,255,255,.55), transparent 58%);
+  transform: translate3d(calc(var(--px, 0) * -40px), calc(var(--py, 0) * -40px), 0);
+  will-change: transform;
+}
+
+/* ── Тёмная среда ────────────────────────────────────────────────────────
+   На тёмном глубина читается иначе: тень не видна, поэтому расстояние
+   несут светлота и свечение. Пятна становятся источниками света в темноте,
+   а виньетка — плотнее, чтобы края уходили в чернильную глубину. */
+
+:root[data-theme="dark"] .bg-field{
+  background:
+    linear-gradient(180deg, #10161f 0%, #0c1119 34%, #090d14 70%, #05080d 100%);
+}
+
+:root[data-theme="dark"] .bg-field::before{
+  background:
+    radial-gradient(1500px 950px at 14% -6%,  rgba(91,140,255,.16), transparent 60%),
+    radial-gradient(1300px 850px at 88% 10%,  rgba(91,140,255,.10), transparent 58%),
+    radial-gradient(1700px 1050px at 52% 118%, rgba(47,204,133,.05), transparent 64%);
+}
+
+:root[data-theme="dark"] .bg-field::after{
+  background:
+    radial-gradient(760px 560px at 78% 26%, rgba(91,140,255,.11), transparent 62%),
+    radial-gradient(620px 480px at 22% 72%, rgba(216,171, 82,.06), transparent 60%);
+}
+
+:root[data-theme="dark"] .bg-grain{
+  box-shadow:
+    inset 0  160px 220px -150px rgba(0,0,0,.55),
+    inset 0 -200px 280px -160px rgba(0,0,0,.75),
+    inset  220px 0 260px -230px rgba(0,0,0,.60),
+    inset -220px 0 260px -230px rgba(0,0,0,.60);
+}
+
+:root[data-theme="dark"] .bg-grain::after{
+  background: radial-gradient(1100px 700px at 50% 0%, rgba(120,160,255,.09), transparent 58%);
+}
+
+/* Содержимое поднимается над средой */
 #app, .site-header, .site-footer, .mobile-tabbar{
   position: relative;
   z-index: var(--z-base);
 }
 
 /* ============================================================================
-   Логотип-словомарка
+   ЗНАК
 
-   Название и есть знак: отдельной иконки нет, роль знака играет сама
-   типографика. Так подпись читается с первого взгляда и не требует
-   пояснения «что это за фигура».
+   Глобус с меридианом и название антиквой. Меридиан — линия, по которой
+   сверяют время и координаты; отсюда имя площадки и смысл знака.
 
-   Единственный графический элемент — тонкая горизонталь под буквами:
-   меридиан, давший имя. Она же служит подчёркиванием и связывает
-   слово в цельный блок.
+   Под основным контуром лежит смещённая копия в цвете бренда: так выглядит
+   несовмещение красок в печати. Приём делает знак печатным, а не
+   «нарисованным в редакторе», и даёт ему собственную глубину.
    ============================================================================ */
 
-.wordmark{
+.mark{
   display: inline-flex;
-  align-items: baseline;
-  gap: .34em;
-  font-family: var(--font-ui);
-  font-weight: var(--fw-bold);
-  letter-spacing: .17em;
+  align-items: center;
+  gap: .58em;
   color: var(--ink);
   text-decoration: none;
   line-height: 1;
-  position: relative;
   white-space: nowrap;
 }
 
-.wordmark .wm-name{
+.mark .mk-badge{
   position: relative;
-  padding-bottom: .3em;
+  flex: none;
+  width: 1.9em;
+  height: 1.9em;
 }
 
-/* Меридиан: линия под названием. Градиент к краям сходит на нет —
-   линия «уходит за горизонт», а не обрывается. */
-.wordmark .wm-name::after{
-  content: "";
+.mark .mk-badge svg{
   position: absolute;
-  left: 0; right: 0; bottom: 0;
-  height: 2px;
-  border-radius: 2px;
-  background: linear-gradient(90deg,
-    transparent 0%, var(--brand) 18%, var(--brand) 82%, transparent 100%);
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
 
-/* Точка на линии — положение на меридиане */
-.wordmark .wm-name::before{
-  content: "";
-  position: absolute;
-  left: 50%; bottom: -2px;
-  width: 6px; height: 6px;
-  margin-left: -3px;
-  border-radius: 50%;
-  background: var(--gold);
-  box-shadow: 0 0 0 3px var(--bg);
+/* Смещённая копия — «вторая краска» */
+.mark .mk-ghost{
+  color: var(--brand);
+  opacity: .85;
+  transform: translate(1.5px, 1px);
+  transition: transform var(--tr-slow), opacity var(--tr);
 }
+:root[data-theme="dark"] .mark .mk-ghost{ opacity: .95; }
 
-.wordmark .wm-sub{
-  font-weight: var(--fw-medium);
-  font-size: .52em;
-  letter-spacing: .22em;
-  color: var(--muted);
+.mark .mk-tick{ opacity: .5; }
+
+.mark .mk-word{
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.02em;
+  letter-spacing: .19em;
   text-transform: uppercase;
 }
 
-/* Размеры */
-.wordmark-sm{ font-size: 17px; }
-.wordmark-md{ font-size: 24px; }
-.wordmark-lg{ font-size: 44px; }
-.wordmark-xl{ font-size: clamp(40px, 7vw, 76px); }
+/* На наведении краски сходятся — знак «попадает в приводку» */
+.mark:hover .mk-ghost{ transform: translate(0, 0); opacity: .55; }
 
-/* На тёмном фоне */
-.wordmark-invert{ color: #fff; }
-.wordmark-invert .wm-name::before{ box-shadow: 0 0 0 3px #0b1220; }
-.wordmark-invert .wm-sub{ color: rgba(255,255,255,.62); }
+/* Размеры: em-основа, поэтому глобус и слово всегда в пропорции */
+.mark-sm{ font-size: 16px; }
+.mark-md{ font-size: 22px; }
+.mark-lg{ font-size: 30px; }
+.mark-xl{ font-size: clamp(28px, 3.4vw, 44px); }
+
+/* Отрисовка контуров при появлении */
+@keyframes mk-draw{ from{ stroke-dashoffset: 100; } to{ stroke-dashoffset: 0; } }
+@keyframes mk-fade{ from{ opacity: 0; } to{ opacity: var(--mk-o, 1); } }
+@keyframes mk-rise{ from{ opacity: 0; transform: translateY(.3em); } to{ opacity: 1; transform: none; } }
+
+.mark-intro .mk-ring,
+.mark-intro .mk-mer,
+.mark-intro .mk-axis{ stroke-dasharray: 100; stroke-dashoffset: 100; }
+.mark-intro .mk-ring{ animation: mk-draw 1s   cubic-bezier(.7,0,.2,1)      forwards; }
+.mark-intro .mk-mer { animation: mk-draw .9s  cubic-bezier(.7,0,.2,1) .3s  forwards; }
+.mark-intro .mk-axis{ animation: mk-draw .7s  cubic-bezier(.7,0,.2,1) .35s forwards; }
+.mark-intro .mk-dot { opacity: 0; animation: mk-fade .5s ease .55s forwards; }
+.mark-intro .mk-tick{ opacity: 0; --mk-o: .5; animation: mk-fade .5s ease .65s forwards; }
+.mark-intro .mk-ghost{ opacity: 0; --mk-o: .85; animation: mk-fade .6s ease .9s forwards; }
+.mark-intro .mk-word{ opacity: 0; animation: mk-rise .7s cubic-bezier(.2,.7,.2,1) .8s forwards; }
+
+@media (prefers-reduced-motion: reduce){
+  .mark-intro .mk-ring, .mark-intro .mk-mer, .mark-intro .mk-axis{
+    animation: none; stroke-dashoffset: 0;
+  }
+  .mark-intro .mk-dot, .mark-intro .mk-tick,
+  .mark-intro .mk-ghost, .mark-intro .mk-word{
+    animation: none; opacity: 1; transform: none;
+  }
+}
 
 /* ============================================================================
-   Первый экран
+   ПЕРВЫЙ ЭКРАН
    ============================================================================ */
 
 .gate{
-  min-height: calc(100vh - var(--header-h));
+  min-height: 100vh;
   display: grid;
   grid-template-columns: 1.08fr .92fr;
   align-items: center;
@@ -144,10 +225,12 @@
 .gate-pitch{ max-width: 34rem; }
 
 .gate-pitch h1{
-  font-size: clamp(34px, 4.6vw, 58px);
-  line-height: 1.06;
-  letter-spacing: var(--ls-tight);
-  margin: var(--sp-6) 0 var(--sp-5);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(38px, 5vw, 66px);
+  line-height: 1.04;
+  letter-spacing: -.015em;
+  margin: var(--sp-7) 0 var(--sp-5);
 }
 
 .gate-pitch .lead{
@@ -157,7 +240,7 @@
   max-width: 44ch;
 }
 
-/* Показатели: тонкие разделители вместо рамок — «менее рамочно» */
+/* Показатели: разделители-волоски вместо рамок */
 .gate-facts{
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -168,11 +251,12 @@
 }
 .gate-facts .f{ display: flex; flex-direction: column; gap: var(--sp-1); }
 .gate-facts .fv{
-  font-family: var(--font-mono);
-  font-size: var(--fs-2xl);
-  font-weight: var(--fw-bold);
+  font-family: var(--font-display);
+  font-size: var(--fs-3xl);
+  font-weight: 600;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
 }
 .gate-facts .fk{
   font-size: var(--fs-xs);
@@ -183,7 +267,7 @@
 
 /* Карточка входа: приподнята тенью, без тяжёлой рамки */
 .gate-card{
-  background: #fff;
+  background: var(--bg);
   border: 1px solid var(--line);
   border-radius: var(--r-xl);
   padding: var(--sp-10) var(--sp-8) var(--sp-8);
@@ -194,6 +278,10 @@
   width: 100%;
   max-width: 27rem;
   margin-left: auto;
+}
+:root[data-theme="dark"] .gate-card{
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
 }
 
 .gate-tabs{
@@ -216,10 +304,11 @@
   transition: all var(--tr-fast);
 }
 .gate-tabs button.on{
-  background: #fff;
+  background: var(--bg);
   color: var(--ink);
   box-shadow: var(--shadow-sm);
 }
+:root[data-theme="dark"] .gate-tabs button.on{ background: var(--surface-3); }
 
 /* Живая лента котировок под питчем */
 .gate-ticker{
@@ -240,7 +329,10 @@
 .gate-ticker .row:last-child{ border-bottom: none; }
 .gate-ticker .sym{ color: var(--ink); font-weight: var(--fw-semi); }
 .gate-ticker .px{ font-family: var(--font-mono); color: var(--text); }
-.gate-ticker .ch{ font-family: var(--font-mono); font-size: var(--fs-xs); min-width: 4.5rem; text-align: right; }
+.gate-ticker .ch{
+  font-family: var(--font-mono); font-size: var(--fs-xs);
+  min-width: 4.5rem; text-align: right;
+}
 
 @media (max-width: 1000px){
   .gate{
@@ -268,6 +360,8 @@
     0 1px 2px rgba(16,24,40,.04),
     0 8px 20px -14px rgba(16,24,40,.16);
 }
+:root[data-theme="dark"] .card,
+:root[data-theme="dark"] .panel{ box-shadow: var(--shadow); }
 
 /* Световая грань сверху: карточка выглядит поднятой, а не наклеенной */
 .card::before, .panel::before{
@@ -279,6 +373,11 @@
               rgba(255,255,255,.9) 22%, rgba(255,255,255,.9) 78%, transparent);
   border-radius: inherit;
   pointer-events: none;
+}
+:root[data-theme="dark"] .card::before,
+:root[data-theme="dark"] .panel::before{
+  background: linear-gradient(90deg, transparent,
+              rgba(255,255,255,.10) 22%, rgba(255,255,255,.10) 78%, transparent);
 }
 .card, .panel, .tile{ position: relative; }
 
@@ -341,3 +440,9 @@ body.is-gate{ padding-bottom: 0; }
 @media (max-width: 1000px){
   .gate-points{ margin-inline: auto; }
 }
+
+/* Переключатель темы: показываем ту иконку, куда переключимся */
+.theme-toggle .ic-sun{ display: none; }
+.theme-toggle .ic-moon{ display: inline-flex; }
+:root[data-theme="dark"] .theme-toggle .ic-sun{ display: inline-flex; }
+:root[data-theme="dark"] .theme-toggle .ic-moon{ display: none; }

@@ -12,8 +12,23 @@
 
 const CANONICAL = ['meridian.exchange', 'www.meridian.exchange'];
 
+/**
+ * Площадки, куда площадка публикуется сама: предпродакшн и превью-сборки.
+ * Адрес там выдаётся хостингом и каноническим стать не может, но подменой
+ * тоже не является — предупреждать о собственном деплое бессмысленно,
+ * а лишняя тревога приучает не читать настоящую.
+ *
+ * Совпадение проверяется по последней метке домена, а не по вхождению
+ * подстроки: `vercel.app.phish.ru` не должен пройти как свой.
+ */
+const DEPLOY_SUFFIXES = ['.vercel.app', '.pages.dev', '.netlify.app'];
+
 /** Локальная разработка — это не подмена. */
 const DEV_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '[::1]', ''];
+
+function isDeployHost(host) {
+  return DEPLOY_SUFFIXES.some(sfx => host.endsWith(sfx));
+}
 
 /**
  * Не-ASCII в домене — почти всегда омограф-атака: «а» кириллическая
@@ -27,14 +42,16 @@ export function inspectOrigin() {
   const host = location.hostname;
   const isDev = DEV_HOSTS.includes(host) || host.endsWith('.local');
   const isCanonical = CANONICAL.includes(host);
+  const isDeploy = isDeployHost(host);
 
   return {
     host,
     isDev,
     isCanonical,
+    isDeploy,
     punycode: hasNonAscii(host),
     insecure: location.protocol !== 'https:' && !isDev,
-    suspicious: !isDev && !isCanonical,
+    suspicious: !isDev && !isDeploy && !isCanonical,
   };
 }
 

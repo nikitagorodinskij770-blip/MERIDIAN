@@ -11,7 +11,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://elokoleohntufgrkyvxm.supabase.co wss://elokoleohntufgrkyvxm.supabase.co https://api.binance.com wss://stream.binance.com:9443 https://api.coinbase.com https://api.exchange.coinbase.com https://api.coingecko.com https://www.okx.com https://api.bybit.com https://api.kraken.com https://www.bitstamp.net; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self' https://elokoleohntufgrkyvxm.supabase.co wss://elokoleohntufgrkyvxm.supabase.co https://api.binance.com wss://stream.binance.com:9443 https://api.coinbase.com https://api.exchange.coinbase.com https://api.coingecko.com https://www.okx.com https://api.bybit.com https://api.kraken.com https://www.bitstamp.net; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
         },
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "Referrer-Policy", "value": "no-referrer" },

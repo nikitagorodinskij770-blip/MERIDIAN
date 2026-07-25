@@ -13,7 +13,8 @@ import * as session from './core/session.js';
 
 /** Первый сегмент пути → модуль вью. */
 const ROUTES = {
-  '':              './views/gate.js',
+  '':              './views/home.js',
+  'home':          './views/home.js',
   'enter':         './views/gate.js',
   'markets':       './views/markets.js',
   'trade':         './views/trade.js',
@@ -29,8 +30,15 @@ const ROUTES = {
   'legal':         './views/legal.js',
 };
 
-/** Разделы, открытые без входа. Всё, чего здесь нет, требует авторизации. */
-const PUBLIC = new Set(['', 'enter', 'legal']);
+/**
+ * Разделы, открытые без входа: витрина, форма входа и правовые документы.
+ * Всё остальное — счёт и терминал — требует авторизации.
+ *
+ * Витрина публична намеренно: рассказывать об условиях и показывать
+ * котировки за формой входа бессмысленно, а согласие при регистрации
+ * ссылается на документы, которые обязаны открываться до создания счёта.
+ */
+const PUBLIC = new Set(['', 'home', 'enter', 'legal']);
 
 /** Куда вести после успешного входа, если пользователь пришёл по ссылке. */
 let intended = null;
@@ -61,9 +69,10 @@ async function resolve() {
   const signedIn = session.isSignedIn();
   const isPublic = PUBLIC.has(seg);
 
-  // Вошедшего с первого экрана уводим внутрь: показывать форму входа
-  // тому, кто уже вошёл, бессмысленно.
-  if (signedIn && (seg === '' || seg === 'enter')) {
+  // Вошедшего уводим с формы входа внутрь: показывать её тому, кто уже
+  // вошёл, бессмысленно. Витрину при этом не отбираем — на неё заходят
+  // и вошедшие, за условиями и сводкой рынка.
+  if (signedIn && seg === 'enter') {
     const target = intended || '#/markets';
     intended = null;
     location.hash = target;
@@ -116,7 +125,7 @@ async function resolve() {
   window.scrollTo(0, 0);
 
   // Каркас скрыт на первом экране: он часть презентации, а не приложения
-  document.body.classList.toggle('is-gate', seg === '' || seg === 'enter');
+  document.body.classList.toggle('is-gate', seg === 'enter');
 }
 
 export function go(hash) {

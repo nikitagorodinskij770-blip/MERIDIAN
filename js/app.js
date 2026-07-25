@@ -9,16 +9,22 @@ import * as feed from './api/feed.js';
 import * as session from './core/session.js';
 import { renderHeader, renderFooter, renderTabbar, renderFeedStatus, toast, qs } from './ui.js';
 import { guardOrigin } from './util/origin-guard.js';
+import * as theme from './fx/theme.js';
+import { startDepth } from './fx/depth.js';
 import router from './router.js';
 
 async function boot() {
   // 1. Подменённый домен: человек должен узнать об этом до формы входа
   guardOrigin();
 
-  // 2. Рыночный движок — нужен и на первом экране для живой ленты котировок
+  // 2. Тема и глубина фона — до первой отрисовки содержимого
+  theme.bind();
+  startDepth();
+
+  // 3. Рыночный движок — нужен и на первом экране для живой ленты котировок
   market.start();
 
-  // 3. Каркас
+  // 4. Каркас
   renderFooter();
   renderTabbar();
 

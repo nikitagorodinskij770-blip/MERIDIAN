@@ -37,8 +37,9 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
     # Иначе статический режим оказался бы слабее защищённым, чем API-режим,
     # и проверять CSP пришлось бы дважды.
     CSP = (
-        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
-        "img-src 'self' data:; font-src 'self'; "
+        "default-src 'self'; script-src 'self'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "img-src 'self' data:; font-src 'self' https://fonts.gstatic.com data:; "
         "connect-src 'self' https://elokoleohntufgrkyvxm.supabase.co wss://elokoleohntufgrkyvxm.supabase.co https://api.binance.com wss://stream.binance.com:9443 "
         "https://api.coinbase.com https://api.exchange.coinbase.com "
         "https://api.coingecko.com https://www.okx.com https://api.bybit.com "

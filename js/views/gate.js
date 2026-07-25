@@ -40,9 +40,34 @@ export default {
 
       <!-- ── Презентация ─────────────────────────────────── -->
       <section class="gate-pitch">
-        <a href="#/" class="wordmark wordmark-lg">
-          <span class="wm-name">MERIDIAN</span>
-        </a>
+        <span class="mark mark-lg mark-intro">
+          <span class="mk-badge" aria-hidden="true">
+            <svg class="mk-ghost" viewBox="0 0 100 100">
+              <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+                <circle cx="50" cy="50" r="33"></circle>
+                <ellipse cx="50" cy="50" rx="12.5" ry="33" stroke-width="2.2"></ellipse>
+                <line x1="50" y1="17" x2="50" y2="83" stroke-width="2.2"></line>
+              </g>
+              <circle cx="50" cy="50" r="4" fill="currentColor"></circle>
+            </svg>
+            <svg class="mk-main" viewBox="0 0 100 100" role="img" aria-label="MERIDIAN">
+              <g class="mk-tick" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square">
+                <line x1="50" y1="2"  x2="50" y2="12"></line>
+                <line x1="50" y1="88" x2="50" y2="98"></line>
+                <line x1="2"  y1="50" x2="12" y2="50"></line>
+                <line x1="88" y1="50" x2="98" y2="50"></line>
+              </g>
+              <circle class="mk-ring" cx="50" cy="50" r="33" pathLength="100" fill="none"
+                      stroke="currentColor" stroke-width="3.2" stroke-linecap="round"></circle>
+              <ellipse class="mk-mer" cx="50" cy="50" rx="12.5" ry="33" pathLength="100" fill="none"
+                       stroke="currentColor" stroke-width="2.4"></ellipse>
+              <line class="mk-axis" x1="50" y1="17" x2="50" y2="83" pathLength="100"
+                    stroke="currentColor" stroke-width="2.4" stroke-linecap="round"></line>
+              <circle class="mk-dot" cx="50" cy="50" r="4.2" fill="currentColor"></circle>
+            </svg>
+          </span>
+          <span class="mk-word">MERIDIAN</span>
+        </span>
 
         <h1>Опорный курс<br>цифровых активов</h1>
 

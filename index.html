@@ -12,9 +12,9 @@
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     script-src 'self';
-    style-src 'self' 'unsafe-inline';
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
     img-src 'self' data:;
-    font-src 'self';
+    font-src 'self' https://fonts.gstatic.com data:;
     connect-src 'self'
       https://elokoleohntufgrkyvxm.supabase.co wss://elokoleohntufgrkyvxm.supabase.co
       https://api.binance.com wss://stream.binance.com:9443
@@ -29,10 +29,24 @@
   <title>MERIDIAN — Digital Asset Exchange</title>
   <meta name="description" content="MERIDIAN — институциональный обменник цифровых активов. Спот-торговля, обмен, кошелёк, аналитика." />
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+
+  <!-- Дисплейная антиква: заголовки и логотип. Текст интерфейса и цифры
+       остаются на гротеске и моноширинном — засечки в плотных таблицах
+       читаются хуже. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&display=swap" />
+
+  <!-- Тема выставляется до отрисовки: иначе тёмная страница успевает
+       мигнуть светлой. Обычный (не module) скрипт — он блокирующий. -->
+  <script src="js/theme-boot.js"></script>
+
   <link rel="stylesheet" href="css/tokens.css" />
   <link rel="stylesheet" href="css/app.css" />
   <link rel="stylesheet" href="css/surface.css" />
   <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/home.css" />
 </head>
 <body>
   <!-- Безграничная фоновая среда: фиксирована, не прокручивается вместе с контентом -->
