@@ -120,6 +120,11 @@ export async function signOut() {
   saveSession(null);
 }
 
+/** Завершает все прочие сессии, кроме текущей (смена пароля, «выйти везде»). */
+export async function signOutOthers() {
+  return request('/auth/v1/logout?scope=others', { method: 'POST' });
+}
+
 export async function refreshSession() {
   if (!session?.refresh_token) return false;
   try {
@@ -227,7 +232,7 @@ export function toNumber(asset, minor) {
 }
 
 export default {
-  signUp, signIn, signOut, refreshSession, resetPassword, updatePassword,
+  signUp, signIn, signOut, signOutOthers, refreshSession, resetPassword, updatePassword,
   getSession, accessToken, currentUser, isSignedIn,
   select, insert, update, remove, rpc,
   toMinor, toHuman, toNumber, scaleOf, cacheScales,

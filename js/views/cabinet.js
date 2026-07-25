@@ -1,7 +1,7 @@
 /* Личный кабинет — профиль, безопасность, устройства, активность, история.
    Работает на серверных данных: балансы, входы и статистика приходят из API. */
 
-import { API, ApiError } from '../api/sign.js';
+import { API, ApiError } from '../api/adapter.js';
 import * as session from '../core/session.js';
 import * as market from '../market.js';
 import { h, qs, qsa, on, coinIcon, modal, toast, ICONS, confirmModal, bindCopy } from '../ui.js';

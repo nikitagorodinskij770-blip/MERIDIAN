@@ -28,6 +28,7 @@ input,select,textarea{ font-family:inherit; font-size:var(--fs-base); }
 ::selection{ background:var(--brand-soft); }
 
 .container{ width:100%; max-width:var(--container); margin-inline:auto; padding-inline:var(--sp-6); }
+.container-wide{ width:100%; max-width:var(--container-wide); margin-inline:auto; padding-inline:var(--sp-6); }
 .app-main{ flex:1 0 auto; }
 .section{ padding-block:var(--sp-12); }
 .section-tight{ padding-block:var(--sp-8); }
@@ -485,7 +486,7 @@ table.tbl tbody tr:hover{ background:var(--surface); }
   .hero{ padding-block:var(--sp-10) var(--sp-8); }
 }
 @media (max-width:520px){
-  .container{ padding-inline:var(--sp-4); }
+  .container, .container-wide{ padding-inline:var(--sp-4); }
   .stat-band{ grid-template-columns:1fr; }
   .footer-inner{ grid-template-columns:1fr; gap:var(--sp-6); }
   .hero h1{ font-size:32px; }

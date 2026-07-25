@@ -1,6 +1,6 @@
 /* Центр уведомлений — события безопасности, операций и сообщений площадки. */
 
-import { API } from '../api/sign.js';
+import { API } from '../api/adapter.js';
 import * as session from '../core/session.js';
 import { h, qs, qsa, on, toast, ICONS } from '../ui.js';
 import { fmtDateTime, timeAgo, esc } from '../format.js';

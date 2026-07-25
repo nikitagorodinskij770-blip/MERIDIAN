@@ -2,7 +2,7 @@
    Работает на серверных данных с разграничением прав: сотрудник видит
    ровно то, на что ему выданы полномочия. */
 
-import { API } from '../api/sign.js';
+import { API } from '../api/adapter.js';
 import * as session from '../core/session.js';
 import { h, qs, qsa, on, modal, toast, ICONS, confirmModal, bindCopy, coinIcon } from '../ui.js';
 import { fmtUSD, fmtNum, fmtPct, fmtDateTime, timeAgo, esc, dirClass } from '../format.js';

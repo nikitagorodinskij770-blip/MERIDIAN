@@ -2,7 +2,7 @@
    Двухпанельная раскладка, как в почтовом клиенте: контекст не теряется
    при переходе между обращениями. */
 
-import { API } from '../api/sign.js';
+import { API } from '../api/adapter.js';
 import * as session from '../core/session.js';
 import { h, qs, qsa, on, modal, toast, ICONS } from '../ui.js';
 import { fmtDateTime, timeAgo, esc } from '../format.js';

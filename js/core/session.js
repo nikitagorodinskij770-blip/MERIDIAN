@@ -72,10 +72,16 @@ export async function restore() {
 export async function refresh() {
   if (!sb.isSignedIn()) return null;
 
+  // Персонал по политике RLS видит чужие строки в profiles и v_user_summary,
+  // поэтому «свою» строку берём строго по uid, а не «первую попавшуюся»:
+  // без фильтра single хватал бы чужой профиль.
+  const uid = sb.currentUser()?.id;
+  const mine = { id: `eq.${uid}` };
+
   const [profile, balances, summary, prices] = await Promise.all([
-    sb.select('profiles', { columns: '*', single: true }),
-    sb.select('v_user_balances', { columns: 'asset_id,available,locked,total' }),
-    sb.select('v_user_summary', { columns: '*', single: true }),
+    sb.select('profiles', { columns: '*', filters: mine, single: true }),
+    sb.select('v_user_balances', { columns: 'asset_id,available,locked,total', filters: { user_id: `eq.${uid}` } }),
+    sb.select('v_user_summary', { columns: '*', filters: { user_id: `eq.${uid}` }, single: true }),
     sb.select('asset_prices', { columns: 'asset_id,last_price_usd' }),
   ]);
 
@@ -84,7 +90,18 @@ export async function refresh() {
   const px = Object.fromEntries(prices.map(p => [p.asset_id, Number(p.last_price_usd)]));
 
   state.auth = sb.currentUser();
-  state.user = profile;
+  // Нормализуем профиль: вью написаны под camelCase-форму старого бэкенда
+  // (name, kycLevel, createdAt…), а Supabase отдаёт snake_case. Оставляем и то,
+  // и другое — так ни одна вью не читает undefined.
+  state.user = {
+    ...profile,
+    name: profile.display_name || profile.email,
+    kycLevel: profile.kyc_level,
+    createdAt: profile.created_at ? new Date(profile.created_at).getTime() : 0,
+    lastSeen: profile.last_seen_at ? new Date(profile.last_seen_at).getTime() : 0,
+    antiPhishing: profile.anti_phishing,
+    twoFA: false,   // TOTP на тестовом контуре ещё не подключён
+  };
   state.balances = balances.map(b => ({
     asset: b.asset_id,
     available: sb.toNumber(b.asset_id, b.available),
