@@ -196,7 +196,11 @@ export default {
       qs('[data-lo]', el).textContent = fmtPrice(market.low24('BTC'));
       qs('[data-vol]', el).textContent = '$' + fmtCompact(market.volume24('BTC'));
 
-      const series = market.sparkline('BTC');
+      // Закрытия свечей, а не спарклайн: спарклайн копится с момента загрузки
+      // страницы и за минуту набирает разброс в сотую долю процента — такая
+      // линия рисует шум округления, а не движение цены. Свечи покрывают
+      // сутки с лишним, и на них видно, что рынок действительно делал.
+      const series = market.candles('BTC-USDT', 900_000).map(c => c.c).filter(Number.isFinite);
       if (series.length > 1) {
         const css = getComputedStyle(document.documentElement);
         const col = css.getPropertyValue(chg >= 0 ? '--up' : '--down').trim();
@@ -267,7 +271,12 @@ export default {
         },
         market.change24(bottom) < 0 && {
           tag: 'Под давлением', ic: 'trendDown', dir: 'down',
-          title: `${bottom} теряет ${fmtPct(Math.abs(market.change24(bottom)))}`,
+          // Величину берём по модулю и без знака: направление уже сказано
+          // словом «теряет», а «теряет +5.30%» или «теряет -5.30%» читается
+          // как ошибка — в первом случае противоречие, во втором двойное
+          // отрицание. Форматтер процентов всегда ставит знак, поэтому здесь
+          // число собирается вручную.
+          title: `${bottom} теряет ${Math.abs(market.change24(bottom)).toFixed(2)}%`,
           body: `${ASSET_MAP[bottom]?.name || bottom} по ${fmtPrice(market.price(bottom))} — ` +
                 `слабейший результат за сутки.`,
           href: `#/trade/${bottom}-USDT`,

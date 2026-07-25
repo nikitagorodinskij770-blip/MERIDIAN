@@ -65,7 +65,17 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
 
 
 def main():
+    # Порядок источников порта: аргумент командной строки → переменная
+    # окружения PORT → значение по умолчанию. Переменная нужна средам,
+    # которые сами выдают свободный порт: без неё запуск падает, когда
+    # 5174 уже занят другим экземпляром сервера.
     port = DEFAULT_PORT
+    env_port = os.environ.get("PORT")
+    if env_port:
+        try:
+            port = int(env_port)
+        except ValueError:
+            sys.exit(f"Некорректный PORT: {env_port}")
     if len(sys.argv) > 1:
         try:
             port = int(sys.argv[1])
@@ -74,7 +84,7 @@ def main():
 
     handler = partial(NoCacheHandler, directory=ROOT)
     server = ThreadingHTTPServer(("127.0.0.1", port), handler)
-    print(f"MERIDIAN -> http://localhost:{port}/  (каталог: {ROOT})")
+    print(f"MERIDIAN -> http://127.0.0.1:{port}/  (каталог: {ROOT})")
     print("Кэш отключён: правки в JS/CSS видны сразу после перезагрузки.")
     try:
         server.serve_forever()

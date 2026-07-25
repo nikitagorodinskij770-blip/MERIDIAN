@@ -15,7 +15,7 @@
 .home{ padding-bottom: var(--sp-24); }
 
 /* Общий шаг разделов */
-.hm-sec{ padding-block: var(--sp-20); }
+.hm-sec{ padding-block: var(--sp-16); }
 
 .hm-sec-head{
   display: flex;
@@ -94,6 +94,9 @@
   gap: var(--sp-2);
   font-size: var(--fs-sm);
   color: var(--muted);
+  /* Пункт переносится целиком или не переносится вовсе: разорванная
+     посередине фраза читается как сбой вёрстки, а не как список. */
+  white-space: nowrap;
 }
 .hm-trust svg{ width: 16px; height: 16px; color: var(--up); flex: none; }
 
