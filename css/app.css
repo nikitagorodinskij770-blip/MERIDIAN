@@ -202,6 +202,22 @@ input,select,textarea{ font-family:inherit; font-size:var(--fs-base); }
 /* --- Tables --- */
 .table-wrap{ overflow-x:auto; }
 
+/* Текст только для чтения с экрана.
+
+   Убирается из вида, но остаётся в дереве доступности. Нужен там, где смысл
+   заголовка передан вёрсткой и его незачем повторять глазам: например,
+   терминал и так подписан парой крупным шрифтом, но заголовка первого
+   уровня в разметке у него нет — а по заголовкам ходят те, кто не видит
+   страницу целиком.
+
+   display:none и visibility:hidden здесь не годятся: они прячут узел и от
+   чтения с экрана тоже. */
+.sr-only{
+  position:absolute; width:1px; height:1px;
+  margin:-1px; padding:0; border:0;
+  clip-path:inset(50%); overflow:hidden; white-space:nowrap;
+}
+
 /* Видимый фокус с клавиатуры.
 
    Очертание фокуса было только у полей ввода: тот, кто ходит по интерфейсу
@@ -421,7 +437,7 @@ table.tbl tbody tr:hover{ background:var(--surface); }
 .legal-nav a:hover{ background:var(--surface); }
 .legal-nav a.active{ background:var(--brand-soft); color:var(--brand-ink); }
 .legal-doc{ max-width:760px; }
-.legal-doc h2{ margin-bottom:var(--sp-2); }
+.legal-doc h1, .legal-doc h2{ margin-bottom:var(--sp-2); }
 .legal-doc h3{ margin-top:var(--sp-8); margin-bottom:var(--sp-3); font-size:var(--fs-lg); }
 .legal-doc .updated{ color:var(--muted); font-size:var(--fs-sm); margin-bottom:var(--sp-6); }
 .legal-doc ul{ color:var(--text); padding-left:20px; }

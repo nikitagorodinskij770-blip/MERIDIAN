@@ -26,6 +26,7 @@ export default {
 
         <!-- ── Шапка пары ────────────────────────────────── -->
         <div class="trade-cell trade-head">
+          <h1 class="sr-only" data-h1>Спот-терминал ${esc(pair.replace('-', ' / '))}</h1>
           <button class="asset-pick" data-pairpick>
             ${coinIcon(base, 'sm')}
             <span class="pair-name" data-pairname>${esc(pair.replace('-', ' / '))}</span>
@@ -308,6 +309,7 @@ export default {
       ({ base, quote } = market.splitPair(pair));
       history.replaceState(null, '', `#/trade/${pair}`);
       qs('[data-pairname]', el).textContent = pair.replace('-', ' / ');
+      qs('[data-h1]', el).textContent = `Спот-терминал ${pair.replace('-', ' / ')}`;
       qsa('[data-blabel],[data-bsuffix]', el).forEach(n => n.textContent = base);
       qsa('[data-qlabel],[data-qsuffix]', el).forEach(n => n.textContent = quote);
       priceInp.value = market.pairPrice(pair).toFixed(priceDecimals(market.pairPrice(pair)));

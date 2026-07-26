@@ -393,7 +393,11 @@ export default {
 
         <article class="legal-doc">
           <a class="btn-link" href="#/legal" style="display:inline-block;margin-bottom:16px">← Все документы</a>
-          <h2>${esc(doc.title)}</h2>
+          <!-- Заголовок первого уровня: на странице документа его название и
+               есть главный заголовок. Прежде здесь стоял h2, и страница
+               оставалась без h1 — те, кто ходит по документу заголовками,
+               не находили точку входа. -->
+          <h1>${esc(doc.title)}</h1>
           <div class="updated">Редакция от ${UPDATED} · ${esc(BRAND.legalName)}</div>
           ${doc.body}
           <div class="risk-note" style="margin-top:32px">
