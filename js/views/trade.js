@@ -102,9 +102,13 @@ export default {
             ${[25, 50, 75, 100].map(p => `<button data-pct="${p}">${p}%</button>`).join('')}
           </div>
 
+          <div class="rate-line"><span>Доступно</span>
+            <b><button class="lnk-avail" data-useall>—</button></b></div>
           <div class="rate-line"><span>Итого</span><b data-total>—</b></div>
           <div class="rate-line"><span>Комиссия</span><b data-fee>—</b></div>
-          <div class="rate-line"><span>Доступно</span><b data-avail>—</b></div>
+          <div class="rate-line strong"><span data-recvlabel>Вы получите</span><b data-recv>—</b></div>
+
+          <p class="panel-alert" data-shortfall hidden></p>
 
           <button class="btn btn-up btn-block btn-lg" data-submit>Купить ${esc(base)}</button>
           <p class="help center" style="margin:0">Мейкер ${(CONFIG.makerFee * 100).toFixed(2)}% ·
@@ -146,27 +150,58 @@ export default {
 
     const availAsset = () => (side === 'buy' ? quote : base);
 
+    /**
+     * Пересчёт панели.
+     *
+     * Панель обязана отвечать на вопрос «что я получу», а не только принимать
+     * числа. Поэтому здесь считается итог сделки, а нехватка средств
+     * показывается до нажатия, а не после: сообщение об ошибке поверх уже
+     * заполненной формы человек воспринимает как отказ и обвинение, тогда как
+     * заранее подсвеченная нехватка — как подсказку, что поправить. Кнопка при
+     * этом выключается: предлагать действие, которое заведомо не пройдёт,
+     * значит обещать невыполнимое.
+     */
     function refreshPanel() {
       const px = currentPrice();
       const qty = parseAmount(qtyInp.value);
       const total = px * qty;
       const feeRate = type === 'market' ? CONFIG.takerFee : CONFIG.makerFee;
+      const buy = side === 'buy';
       const dec = ASSET_MAP[base]?.dec ?? 6;
+      const qdec = ASSET_MAP[quote]?.dec ?? 2;
+
+      const av = availAsset();
+      const avail = store.available(av);
+      const need = buy ? total : qty;                       // сколько списывается
+      const fee = buy ? qty * feeRate : total * feeRate;
+      const recv = buy ? qty - fee : total - fee;           // сколько придёт
 
       qs('[data-total]', el).textContent = total > 0
         ? `${fmtNum(total, 2, 8)} ${quote}` : '—';
       qs('[data-fee]', el).textContent = qty > 0
-        ? (side === 'buy'
-            ? `${fmtNum(qty * feeRate, 0, dec)} ${base}`
-            : `${fmtNum(total * feeRate, 2, 6)} ${quote}`)
+        ? `${fmtNum(fee, 0, buy ? dec : qdec)} ${buy ? base : quote}`
+        : '—';
+      qs('[data-recvlabel]', el).textContent = buy ? 'Вы получите' : 'Вы получите';
+      qs('[data-recv]', el).textContent = qty > 0
+        ? `${fmtNum(recv, 0, buy ? dec : qdec)} ${buy ? base : quote}`
         : '—';
 
-      const av = availAsset();
-      qs('[data-avail]', el).textContent =
-        `${fmtNum(store.available(av), 0, ASSET_MAP[av]?.dec ?? 4)} ${av}`;
+      qs('[data-useall]', el).textContent =
+        `${fmtNum(avail, 0, ASSET_MAP[av]?.dec ?? 4)} ${av}`;
 
-      submitBtn.className = `btn btn-block btn-lg ${side === 'buy' ? 'btn-up' : 'btn-down'}`;
-      submitBtn.textContent = `${side === 'buy' ? 'Купить' : 'Продать'} ${base}`;
+      // Нехватку показываем только когда человек уже ввёл количество:
+      // подсвечивать пустую форму значит ругать за то, что ещё не сделано.
+      const short = qty > 0 && need > avail + 1e-9;
+      const alert = qs('[data-shortfall]', el);
+      alert.hidden = !short;
+      if (short) {
+        alert.textContent = `Не хватает ${fmtNum(need - avail, 0, ASSET_MAP[av]?.dec ?? 4)} ${av}. `
+          + `Уменьшите количество или пополните счёт.`;
+      }
+
+      submitBtn.disabled = short;
+      submitBtn.className = `btn btn-block btn-lg ${buy ? 'btn-up' : 'btn-down'}`;
+      submitBtn.textContent = `${buy ? 'Купить' : 'Продать'} ${base}`;
       qs('[data-pricefield]', el).style.display = type === 'market' ? 'none' : '';
     }
 
@@ -323,6 +358,16 @@ export default {
       const q = side === 'buy'
         ? (store.available(quote) * pct) / px
         : store.available(base) * pct;
+      qtyInp.value = q > 0 ? q.toFixed(ASSET_MAP[base]?.dec ?? 6).replace(/\.?0+$/, '') : '';
+      refreshPanel();
+    });
+
+    // Остаток кликабелен: чаще всего его и хотят продать целиком, а
+    // переписывать длинное число вручную — лишняя работа и повод для опечатки.
+    on(el, 'click', '[data-useall]', () => {
+      const px = currentPrice();
+      if (!px) return;
+      const q = side === 'buy' ? store.available(quote) / px : store.available(base);
       qtyInp.value = q > 0 ? q.toFixed(ASSET_MAP[base]?.dec ?? 6).replace(/\.?0+$/, '') : '';
       refreshPanel();
     });
