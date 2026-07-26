@@ -126,8 +126,32 @@ input,select,textarea{ font-family:inherit; font-size:var(--fs-base); }
 .btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px;
   border:1px solid transparent; border-radius:var(--r-sm); padding:10px 16px;
   font-weight:600; font-size:var(--fs-base); line-height:1; transition:all var(--tr-fast); background:none; color:var(--ink); }
+/* Отклик на действие.
+
+   Наведение приподнимает, нажатие — вдавливает. Это не украшение: после
+   того как с управления сняли рамки, отклик остался единственным
+   подтверждением, что элемент вообще нажимается и что нажатие засчитано.
+   Особенно на бирже, где после клика не всегда видно результат сразу.
+
+   Вдавливание сделано смещением и лёгким затемнением, а не изменением
+   размера: масштабирование кнопки дёргает соседние элементы в строке.
+   Длительность взята самая короткая из шкалы — отклик должен успевать
+   за пальцем, иначе воспринимается как задержка интерфейса.
+
+   Под prefers-reduced-motion переходы гасятся глобально (см. tokens.css),
+   и остаётся только смена цвета — сигнал сохраняется, движение уходит. */
 .btn:hover{ transform:translateY(-1px); }
-.btn:active{ transform:translateY(0); }
+.btn:active{ transform:translateY(1px); filter:brightness(.94); }
+.btn-ghost:active, .btn-link:active{ filter:none; background:var(--surface-2); }
+
+/* Подсветка строки под курсором уже задана ниже (table.tbl tbody tr:hover);
+   здесь добавляется только плавность — резкая смена подложки в плотной
+   таблице читается как мигание, когда ведёшь курсор по списку. */
+.tbl tbody tr{ transition:background var(--tr-fast); }
+
+#site-header .btn-ghost:active,
+#site-header .menu-toggle:active,
+#site-header .acct-chip:active{ background:var(--surface-2); transform:translateY(1px); }
 .btn-primary{ background:var(--brand); color:#fff; box-shadow:var(--shadow-sm); }
 .btn-primary:hover{ background:var(--brand-hover); color:#fff; }
 .btn-ghost{ background:var(--card); border-color:var(--line-strong); color:var(--ink); }
