@@ -501,6 +501,31 @@ table.tbl tbody tr:hover{ background:var(--surface); }
   .section{ padding-block:var(--sp-8); }
   .hero{ padding-block:var(--sp-10) var(--sp-8); }
 }
+/* Шапка на узком экране.
+
+   В шапке помещается ровно то, чем пользуются на ходу: вход в кабинет,
+   уведомления и меню. Индикатор источника котировок и сумма портфеля
+   отсюда уходят — вместе они шире экрана, а прочитать их на бегу всё
+   равно не выходит. Оба показателя остаются на своих экранах: источник
+   котировок виден на «Рынках», сумма — в кошельке и кабинете. */
+@media (max-width:640px){
+  .header-inner{ gap:var(--sp-3); }
+  .feed-chip{ display:none; }
+  /* Ничто в шапке не должно распирать её шире экрана */
+  .header-actions{ min-width:0; }
+  .header-actions > *{ flex:none; }
+}
+@media (max-width:440px){
+  .acct-chip .bal{ display:none; }
+  .acct-chip{ padding:4px; }
+  /* Остаётся один глобус: знак узнаётся и без слова, а полсотни пикселей
+     на название — это ровно та ширина, из-за которой шапка не помещалась
+     и страница ездила вбок. Полное написание возвращается на первом
+     экране и в подвале, где место есть. */
+  .site-header .mark .mk-word{ display:none; }
+  .site-header .mark{ font-size:18px; }
+}
+
 @media (max-width:520px){
   .container, .container-wide{ padding-inline:var(--sp-4); }
   .stat-band{ grid-template-columns:1fr; }
