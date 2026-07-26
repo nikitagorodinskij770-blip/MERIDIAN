@@ -338,11 +338,22 @@ export default {
               <td class="num muted" style="font-size:var(--fs-xs)">${fmtDateTime(l.at)}</td>
             </tr>`).join('')}</tbody></table></div>
 
+          <!-- Два действия затрагивают учётные данные другого человека и
+               выполнимы только серверной функцией с service-ключом, которому
+               в браузере не место. Показываем их выключенными с объяснением:
+               кнопка, которая выглядит рабочей и падает по нажатию, хуже
+               честно недоступной — она тратит время и подрывает доверие
+               к остальным кнопкам панели. -->
           <div class="row gap-2 wrap" style="margin-top:var(--sp-5)">
-            <button class="btn btn-ghost btn-sm" data-act="revoke">Завершить сессии</button>
-            <button class="btn btn-ghost btn-sm" data-act="reset2fa">Сбросить 2FA</button>
+            <button class="btn btn-ghost btn-sm" data-act="revoke" disabled
+                    title="Требуется серверная функция с service-ключом">Завершить сессии</button>
+            <button class="btn btn-ghost btn-sm" data-act="reset2fa" disabled
+                    title="Требуется серверная функция с service-ключом">Сбросить 2FA</button>
             <button class="btn btn-ghost btn-sm" data-act="kyc">Изменить KYC</button>
-          </div>`,
+          </div>
+          <p class="help" style="margin-top:var(--sp-3)">Завершение чужих сессий и сброс
+             двухфакторной защиты выполняются серверной функцией: ключ, дающий такие
+             права, в браузер не передаётся.</p>`,
 
         notes: () => `
           <div class="field">
