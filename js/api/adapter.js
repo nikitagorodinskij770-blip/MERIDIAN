@@ -232,8 +232,14 @@ async function get(path) {
         }));
       }
       if (parts[1] === 'staff') {
+        // Связь указывается явно по внешнему ключу: staff_profiles ссылается
+        // на profiles дважды — сам сотрудник (user_id) и тот, кто выдал права
+        // (created_by). Без уточнения PostgREST не может выбрать между ними и
+        // отвечает отказом, из-за чего раздел «Сотрудники» открывался как
+        // недоступный, хотя прав у оператора достаточно.
         const rows = await sb.select('staff_profiles', {
-          columns: 'user_id,position,department,permissions,disabled_at,created_at,profiles(email,display_name,status,last_seen_at)',
+          columns: 'user_id,position,department,permissions,disabled_at,created_at,'
+                 + 'profiles!staff_profiles_user_id_fkey(email,display_name,status,last_seen_at)',
         });
         return {
           staff: rows.map(s => ({
