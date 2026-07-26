@@ -82,6 +82,46 @@ input,select,textarea{ font-family:inherit; font-size:var(--fs-base); }
 .acct-chip .ava{ width:26px;height:26px;border-radius:50%; background:var(--brand); color:#fff; display:grid; place-items:center; font-size:12px; font-weight:700; }
 .acct-chip .bal{ font-size:var(--fs-sm); color:var(--ink); font-weight:600; }
 
+/* ── Обвязка без коробок ──────────────────────────────────────────────────
+
+   Рамка оправдана там, где разделяет разные плоскости: карточку и страницу,
+   редактируемое поле и обычный текст. Вокруг того, что и так читается как
+   управление — значка, названия раздела, суммы на счету — она повторяет уже
+   сказанное и превращает шапку в череду квадратов. Слева пункты навигации
+   давно живут без рамок; справа теперь так же, и обе половины читаются как
+   одна строка, а не как два разных интерфейса.
+
+   Управление опознаётся не обводкой, а откликом: наведение даёт подложку,
+   нажатие — сдвиг, клавиатурный фокус — кольцо. Все три сигнала возникают в
+   ответ на действие, поэтому в покое шапка молчит и не спорит с содержимым
+   страницы за внимание.
+
+   Форменные кнопки это не затрагивает: там, где действие нужно найти глазом
+   среди текста — в диалоге, в форме — заливка и граница остаются. */
+
+#site-header .btn-ghost,
+#site-header .menu-toggle,
+#site-header .acct-chip,
+#site-header .feed-chip{
+  background: none;
+  border-color: transparent;
+  box-shadow: none;
+}
+#site-header .btn-ghost:hover,
+#site-header .menu-toggle:hover,
+#site-header .acct-chip:hover{ background: var(--surface); }
+
+/* Сумма на счету — сведение, а не кнопка-таблетка: убираем пилюлю,
+   оставляем аватар (он форма по смыслу) и само число. */
+#site-header .acct-chip{
+  padding: 6px 10px 6px 6px;
+  border-radius: var(--r-sm);
+}
+
+/* Источник котировок остаётся цветным — цвет здесь несёт состояние,
+   а не украшает; убирается только плашка вокруг него. */
+#site-header .feed-chip{ padding-inline: 0; }
+
 /* --- Buttons --- */
 .btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px;
   border:1px solid transparent; border-radius:var(--r-sm); padding:10px 16px;
@@ -115,11 +155,15 @@ input,select,textarea{ font-family:inherit; font-size:var(--fs-base); }
 /* --- Badges / chips --- */
 .badge{ display:inline-flex; align-items:center; gap:6px; padding:3px 9px; border-radius:var(--r-pill);
   font-size:var(--fs-xs); font-weight:650; letter-spacing:.02em; }
-.badge-up{ background:var(--up-soft); color:#0a7a44; }
-.badge-down{ background:var(--down-soft); color:#b21f2b; }
+/* Цвета плашек берутся из токенов, а не задаются краской: зашитые значения
+   подбирались под светлую подложку и на тёмной теме читались тускло —
+   их спасала только заливка, а без неё они проваливались в фон. Токен же
+   меняется вместе с темой и одинаково контрастен к обеим подложкам. */
+.badge-up{ background:var(--up-soft); color:var(--up); }
+.badge-down{ background:var(--down-soft); color:var(--down); }
 .badge-neutral{ background:var(--surface-2); color:var(--muted); }
 .badge-brand{ background:var(--brand-soft); color:var(--brand-ink); }
-.badge-gold{ background:var(--gold-soft); color:#8a6414; }
+.badge-gold{ background:var(--gold-soft); color:var(--gold); }
 .pct{ font-family:var(--font-mono); font-weight:600; }
 
 /* --- Asset icon --- */
