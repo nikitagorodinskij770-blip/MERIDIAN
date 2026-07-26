@@ -142,6 +142,17 @@ export default {
               Не удаётся войти?</button>
           </div>
 
+          <!-- Счёт создан, но требуется подтверждение почты -->
+          <div class="gate-sent" data-sent hidden>
+            <span class="gate-sent-ic">${ICONS.mail}</span>
+            <h3>Проверьте почту</h3>
+            <p>Счёт создан на адрес <b data-sentmail></b>. Мы отправили письмо
+               со ссылкой активации — откройте её, и вход заработает.</p>
+            <p class="help">Письма нет через пару минут? Загляните в спам.
+               Ссылка действует ограниченное время.</p>
+            <button class="btn btn-ghost btn-block" data-backtologin>Вернуться ко входу</button>
+          </div>
+
           <div class="note note-info" style="margin-top:var(--sp-6)">
             ${ICONS.shieldLock}
             <div>Вход с нового устройства сопровождается уведомлением.
@@ -173,6 +184,12 @@ export default {
     }
 
     on(el, 'click', '[data-mode]', (_e, t) => setMode(t.dataset.mode));
+
+    on(el, 'click', '[data-backtologin]', () => {
+      qs('[data-sent]', el).hidden = true;
+      qs('[data-form]', el).hidden = false;
+      setMode('signin');
+    });
 
     /* ── Отправка ── */
     qs('[data-form]', el).addEventListener('submit', async e => {
@@ -207,9 +224,15 @@ export default {
         if (mode === 'signup') {
           const r = await session.signUp({ email, password, name });
           if (r.needsConfirmation) {
-            toast({ title: 'Подтвердите почту',
-                    msg: 'Мы отправили письмо со ссылкой активации.', kind: 'warn', ttl: 9000 });
-            setMode('signin');
+            // Счёт создан, но вход закрыт до подтверждения почты. Исчезающее
+            // уведомление здесь не годится: человек уходит в почтовый ящик и
+            // возвращается на страницу, где о его счёте уже ничто не
+            // напоминает — выглядит так, будто регистрация не сработала.
+            // Поэтому состояние остаётся на экране, пока его не закроют.
+            qs('[data-form]', el).hidden = true;
+            qs('[data-signin-only]', el).hidden = true;
+            qs('[data-sent]', el).hidden = false;
+            qs('[data-sentmail]', el).textContent = email;
             return;
           }
           toast({ title: 'Счёт открыт', msg: 'Добро пожаловать в MERIDIAN', kind: 'ok' });

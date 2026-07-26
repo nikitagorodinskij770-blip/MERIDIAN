@@ -310,6 +310,27 @@
 }
 :root[data-theme="dark"] .gate-tabs button.on{ background: var(--surface-3); }
 
+/* Состояние «счёт создан, ждём подтверждения почты».
+   Остаётся на экране, а не гаснет: человек уходит в почтовый ящик и
+   возвращается — на странице должно быть видно, что регистрация прошла. */
+.gate-sent{ text-align: center; padding: var(--sp-4) 0; }
+.gate-sent-ic{
+  display: inline-grid; place-items: center;
+  width: 52px; height: 52px; margin-bottom: var(--sp-4);
+  border-radius: 50%;
+  background: var(--brand-soft); color: var(--brand);
+}
+.gate-sent h3{
+  font-family: var(--font-display); font-weight: 600;
+  font-size: var(--fs-2xl); color: var(--ink); margin: 0 0 var(--sp-3);
+}
+.gate-sent p{
+  color: var(--muted); font-size: var(--fs-sm);
+  line-height: var(--lh-base); margin: 0 0 var(--sp-3);
+}
+.gate-sent p b{ color: var(--ink); font-family: var(--font-mono); font-size: var(--fs-xs); }
+.gate-sent .btn{ margin-top: var(--sp-3); }
+
 /* Живая лента котировок под питчем */
 .gate-ticker{
   display: flex;
