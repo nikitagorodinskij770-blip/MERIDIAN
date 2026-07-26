@@ -3,7 +3,7 @@
 import { ASSET_MAP, CONFIG } from '../seed.js';
 import * as market from '../market.js';
 import * as store from '../store.js';
-import { h, qs, qsa, on, coinIcon, assetPicker, toast, ICONS } from '../ui.js';
+import { h, qs, qsa, on, coinIcon, assetPicker, toast, ICONS, confirmAction } from '../ui.js';
 import { fmtNum, fmtPrice, fmtUSD, parseAmount, esc, timeAgo, fmtQty } from '../format.js';
 
 const POPULAR = [
@@ -198,14 +198,30 @@ export default {
       syncPickers();
     });
 
-    qs('[data-do]', el).addEventListener('click', () => {
+    qs('[data-do]', el).addEventListener('click', async () => {
       if (!store.isSignedIn()) {
         toast({ title: 'Нужен вход', msg: 'Войдите, чтобы обменивать.', kind: 'warn' });
-        location.hash = '#/signin';
+        location.hash = '#/enter';
         return;
       }
       const amt = parseAmount(amtInp.value);
       if (!amt) { toast({ title: 'Введите сумму', kind: 'err' }); return; }
+
+      const q = store.quoteConvert(from, to, amt);
+      const ok = await confirmAction({
+        title: 'Подтвердите обмен',
+        intro: 'Обмен проходит по сводной цене площадки и выполняется сразу. Отменить его нельзя.',
+        rows: [
+          ['Отдаёте', `${fmtNum(amt, 0, 8)} ${from}`, 'out'],
+          ['Курс', `1 ${from} = ${q.rate.toPrecision(6)} ${to}`],
+          ['Комиссия', `${fmtNum(q.fee, 0, 8)} ${to} · ${(q.feeRate * 100).toFixed(2)}%`],
+          ['Получаете', `${fmtNum(q.net, 0, 8)} ${to}`, 'total in'],
+        ],
+        warn: 'Курс пересчитывается в момент подтверждения и может немного отличаться от показанного.',
+        okLabel: 'Обменять',
+      });
+      if (!ok) return;
+
       try {
         store.convert(from, to, amt);
         amtInp.value = '';

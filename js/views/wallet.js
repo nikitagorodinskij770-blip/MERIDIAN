@@ -3,7 +3,7 @@
 import { ASSETS, ASSET_MAP } from '../seed.js';
 import * as market from '../market.js';
 import * as store from '../store.js';
-import { h, qs, qsa, on, coinIcon, assetPicker, toast, ICONS, bindCopy, confirmModal } from '../ui.js';
+import { h, qs, qsa, on, coinIcon, assetPicker, toast, ICONS, bindCopy, confirmModal, confirmAction } from '../ui.js';
 import { fmtUSD, fmtNum, fmtPrice, fmtPct, dirClass, shortAddr, fmtDateTime, parseAmount, esc, timeAgo } from '../format.js';
 import { validateAddress } from '../util/address.js';
 
@@ -468,11 +468,30 @@ export default {
         return;
       }
 
-      const ok = await confirmModal({
+      // Перевод в чужую сеть необратим: ошибку в адресе не отменить и деньги
+      // не вернуть. Поэтому здесь самое сильное трение в приложении — адрес
+      // показывается целиком, а его конец надо набрать вручную. Это ловит
+      // ровно ту атаку, ради которой воруют буфер обмена: подменённый адрес
+      // выглядит похожим, но переписать его конец с экрана человек не сможет,
+      // не заметив расхождения.
+      const fee = store.withdrawFee(wAsset, wNet);
+      const tail = addr.slice(-6);
+      const ok = await confirmAction({
         title: 'Подтвердите вывод',
-        text: `Вывести ${fmtNum(v, 0, 8)} ${wAsset} в сети ${wNet} на адрес ${shortAddr(addr, 10, 8)}? ` +
-              `Комиссия сети ${fmtNum(store.withdrawFee(wAsset, wNet), 0, 8)} ${wAsset}.`,
-        okLabel: 'Вывести',
+        intro: `Средства уйдут в сеть ${wNet}. Перевод необратим: отозвать его или изменить адрес после отправки невозможно.`,
+        rows: [
+          ['Актив', wAsset],
+          ['Сеть', wNet],
+          ['Адрес получателя', addr],
+          ['Сумма', `${fmtNum(v, 0, 8)} ${wAsset}`],
+          ['Комиссия сети', `${fmtNum(fee, 0, 8)} ${wAsset}`],
+          ['Спишется со счёта', `${fmtNum(v + fee, 0, 8)} ${wAsset}`, 'total out'],
+        ],
+        warn: 'Сверьте адрес символ в символ. Вредоносные программы подменяют адрес в буфере обмена на похожий.',
+        okLabel: 'Вывести средства',
+        level: 'critical',
+        confirmText: tail,
+        confirmHint: `Введите последние 6 символов адреса (${tail}), чтобы подтвердить, что он верен`,
       });
       if (!ok) return;
 

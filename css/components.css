@@ -187,6 +187,73 @@
   border: 1px solid var(--line);
   background: var(--card); color: var(--text);
 }
+
+/* ── Подтверждение операции ──────────────────────────────────────────────
+   Разбор операции построчно: слева — что за величина, справа — само
+   значение. Значения выровнены по правому краю и набраны моноширинным,
+   поэтому суммы читаются столбцом и сравниваются взглядом, а не по одной. */
+
+.cfm-intro{
+  margin: 0 0 var(--sp-5);
+  color: var(--text);
+  font-size: var(--fs-md);
+  line-height: var(--lh-snug);
+}
+
+.cfm-rows{ margin: 0; display: flex; flex-direction: column; }
+
+.cfm-row{
+  display: grid;
+  grid-template-columns: minmax(7rem, auto) 1fr;
+  gap: var(--sp-4);
+  align-items: baseline;
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.cfm-row:last-child{ border-bottom: none; }
+.cfm-row dt{ color: var(--muted); font-size: var(--fs-sm); }
+.cfm-row dd{
+  margin: 0;
+  text-align: right;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* Итоговая строка — то, ради чего операция затевается */
+.cfm-row.total{ border-top: 1px solid var(--line); border-bottom: none; margin-top: var(--sp-2); }
+.cfm-row.total dt{ color: var(--ink); font-weight: var(--fw-semi); }
+.cfm-row.total dd{ font-size: var(--fs-lg); font-weight: var(--fw-bold); }
+.cfm-row.out dd{ color: var(--down); }
+.cfm-row.in  dd{ color: var(--up); }
+
+.cfm-warn{
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: var(--sp-3);
+  align-items: start;
+  margin-top: var(--sp-5);
+  padding: var(--sp-4);
+  border-radius: var(--r-sm);
+  background: var(--warn-soft);
+  border: 1px solid var(--warn-line);
+  color: var(--warn);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+}
+.cfm-warn svg{ width: 20px; height: 20px; flex: none; }
+
+.cfm-type{ display: block; margin-top: var(--sp-5); }
+.cfm-type span{
+  display: block;
+  margin-bottom: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+.cfm-type .input{ font-family: var(--font-mono); }
+
 .msg.mine .msg-body{
   background: var(--brand); border-color: var(--brand); color: #fff;
   border-bottom-right-radius: var(--r-xs);

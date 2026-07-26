@@ -3,7 +3,7 @@
 import { EARN_PRODUCTS, ASSET_MAP } from '../seed.js';
 import * as market from '../market.js';
 import * as store from '../store.js';
-import { h, qs, qsa, on, coinIcon, modal, toast, ICONS, confirmModal } from '../ui.js';
+import { h, qs, qsa, on, coinIcon, modal, toast, ICONS, confirmModal, confirmAction } from '../ui.js';
 import { fmtNum, fmtUSD, parseAmount, esc, fmtDate } from '../format.js';
 
 export default {
@@ -176,10 +176,31 @@ export default {
         inp.value = fmtNum(avail, 0, 8).replace(/\s/g, ''); calc();
       });
       qs('[data-cancel]', m.node).addEventListener('click', m.close);
-      qs('[data-ok]', m.node).addEventListener('click', () => {
+      qs('[data-ok]', m.node).addEventListener('click', async () => {
         const v = parseAmount(inp.value);
         if (!v) { toast({ title: 'Введите сумму', kind: 'err' }); return; }
         if (v < p.min) { toast({ title: 'Сумма ниже минимума', msg: `Минимум ${p.min} ${p.asset}`, kind: 'err' }); return; }
+
+        // У срочного продукта средства запираются до конца срока, у гибкого
+        // возвращаются в любой момент — предупреждение и уровень трения
+        // должны отличаться, иначе оба читаются как формальность.
+        const flexible = p.term === 'Гибкий';
+        if (!await confirmAction({
+          title: 'Разместить средства',
+          intro: flexible
+            ? 'Средства уходят в продукт доходности. Забрать их вместе с накопленным доходом можно в любой момент.'
+            : `Средства размещаются на срок «${p.term}» и до его окончания недоступны для торговли и вывода.`,
+          rows: [
+            ['Продукт', `${p.kind} · ${p.term}`],
+            ['Ставка', `${p.apy.toFixed(2)}% годовых`],
+            ['Размещается', `${fmtNum(v, 0, 8)} ${p.asset}`, 'out'],
+            ['Доход за год', `≈ ${fmtNum(v * (p.apy / 100), 0, 8)} ${p.asset}`, 'total in'],
+          ],
+          warn: flexible ? '' : 'Досрочный возврат по этому продукту не предусмотрен.',
+          okLabel: 'Разместить',
+          level: flexible ? 'normal' : 'danger',
+        })) return;
+
         try {
           store.earnSubscribe(p, v);
           m.close();

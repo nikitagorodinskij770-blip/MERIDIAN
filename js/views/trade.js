@@ -3,7 +3,7 @@
 import { PAIRS, ASSET_MAP, INTERVALS, CONFIG } from '../seed.js';
 import * as market from '../market.js';
 import * as store from '../store.js';
-import { h, qs, qsa, on, coinIcon, modal, toast, ICONS } from '../ui.js';
+import { h, qs, qsa, on, coinIcon, modal, toast, ICONS, confirmAction } from '../ui.js';
 import { fmtPrice, fmtPct, fmtCompact, fmtNum, fmtQty, dirClass, priceDecimals, parseAmount, fmtTime, esc } from '../format.js';
 import { drawCandles } from '../charts.js';
 
@@ -364,16 +364,50 @@ export default {
     });
 
     /* ── Отправка ордера ── */
-    submitBtn.addEventListener('click', () => {
+    submitBtn.addEventListener('click', async () => {
       if (!store.isSignedIn()) {
         toast({ title: 'Нужен вход', msg: 'Войдите, чтобы торговать.', kind: 'warn' });
-        location.hash = '#/signin';
+        location.hash = '#/enter';
         return;
       }
       const qty = parseAmount(qtyInp.value);
       const px = type === 'limit' ? parseAmount(priceInp.value) : market.pairPrice(pair);
       if (!qty) { toast({ title: 'Укажите количество', kind: 'err' }); return; }
       if (type === 'limit' && !px) { toast({ title: 'Укажите цену', kind: 'err' }); return; }
+
+      const buy = side === 'buy';
+      const notional = qty * px;
+      const feeRate = type === 'market' ? CONFIG.takerFee : CONFIG.makerFee;
+      const fee = buy ? qty * feeRate : notional * feeRate;
+      const dec = ASSET_MAP[base]?.dec ?? 6;
+
+      // Рыночная заявка исполняется сразу и отменена быть не может, лимитная
+      // встаёт в книгу и снимается кнопкой — трение у них разное.
+      const rows = [
+        ['Инструмент', pair.replace('-', ' / ')],
+        ['Направление', buy ? 'Покупка' : 'Продажа'],
+        ['Тип', type === 'market' ? 'Рыночная' : 'Лимитная'],
+        [type === 'market' ? 'Цена (ориентир)' : 'Цена', `${fmtNum(px, 2, 8)} ${quote}`],
+        ['Количество', `${fmtNum(qty, 0, dec)} ${base}`],
+        ['Комиссия', `${fmtNum(fee, 0, buy ? dec : 6)} ${buy ? base : quote}`],
+        [buy ? 'Спишется' : 'Зачислится',
+         buy ? `${fmtNum(notional, 2, 8)} ${quote}` : `${fmtNum(notional - fee, 2, 8)} ${quote}`,
+         'total'],
+      ];
+
+      const ok = await confirmAction({
+        title: type === 'market' ? 'Исполнить по рынку' : 'Разместить заявку',
+        intro: type === 'market'
+          ? 'Заявка исполнится немедленно по лучшей доступной цене. Отменить исполненную сделку нельзя.'
+          : 'Заявка встанет в книгу и исполнится, когда рынок дойдёт до вашей цены. До исполнения её можно снять.',
+        rows,
+        warn: type === 'market'
+          ? 'Итоговая цена может отличаться от ориентира: рынок движется между нажатием и исполнением.'
+          : '',
+        okLabel: buy ? `Купить ${base}` : `Продать ${base}`,
+        level: type === 'market' ? 'danger' : 'normal',
+      });
+      if (!ok) return;
 
       try {
         store.placeOrder({ pair, side, type, price: px, qty });

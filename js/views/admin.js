@@ -4,7 +4,7 @@
 
 import { API } from '../api/adapter.js';
 import * as session from '../core/session.js';
-import { h, qs, qsa, on, modal, toast, ICONS, confirmModal, bindCopy, coinIcon } from '../ui.js';
+import { h, qs, qsa, on, modal, toast, ICONS, confirmModal, confirmAction, bindCopy, coinIcon } from '../ui.js';
 import { fmtUSD, fmtNum, fmtPct, fmtDateTime, timeAgo, esc, dirClass } from '../format.js';
 import { drawBars, drawDonut, drawArea } from '../charts.js';
 
@@ -397,6 +397,25 @@ export default {
           if (act === 'block') {
             const reason = await askReason(s.display_name || s.email);
             if (!reason) return;
+            // Блокировка отрезает живого человека от его же средств, а список
+            // клиентов — плотная таблица с похожими строками. Ввод почты
+            // вручную нужен ровно для одного: убедиться, что оператор
+            // блокирует того, чью карточку открыл, а не соседнюю запись.
+            if (!await confirmAction({
+              title: 'Заблокировать счёт',
+              intro: 'Клиент немедленно потеряет доступ к торговле, обмену и выводу средств.',
+              rows: [
+                ['Клиент', s.display_name || '—'],
+                ['Почта', s.email],
+                ['Текущий статус', STATUS_UI[s.status]?.[0] || s.status],
+                ['Основание', reason],
+              ],
+              warn: 'Действие попадёт в журнал аудита с вашим именем и указанным основанием.',
+              okLabel: 'Заблокировать',
+              level: 'critical',
+              confirmText: s.email,
+              confirmHint: `Введите почту клиента (${s.email}), чтобы подтвердить блокировку`,
+            })) return;
             await API.post(`/admin/users/${uid}/block`, { reason });
             toast({ title: 'Клиент заблокирован', kind: 'warn' }); m.close(); loadUsers();
           } else if (act === 'unblock') {
@@ -535,11 +554,43 @@ export default {
       qs('[data-n]', m.node).addEventListener('click', m.close);
       qs('[data-y]', m.node).addEventListener('click', async () => {
         const reason = qs('[data-r]', body).value.trim();
+        const asset = qs('[data-a]', body).value.trim().toUpperCase();
+        const raw = qs('[data-am]', body).value.trim().replace(',', '.');
+
+        if (!asset) { toast({ title: 'Укажите актив', kind: 'err' }); return; }
         if (!reason) { toast({ title: 'Укажите основание', kind: 'err' }); return; }
+
+        // Сумму проверяем здесь, а не только на сервере: пустое или испорченное
+        // поле раньше уходило в запрос и возвращалось невнятной ошибкой базы.
+        const num = Number(raw);
+        if (!raw || !Number.isFinite(num) || num === 0) {
+          toast({ title: 'Некорректная сумма',
+                  msg: 'Укажите число со знаком, например 250 или -50', kind: 'err' });
+          return;
+        }
+
+        // Лишний ноль здесь — это чужие деньги. Поэтому сумму просим повторить:
+        // «250» и «2500» в поле выглядят почти одинаково, а в подтверждении
+        // стоят рядом с направлением операции и активом.
+        const dir = num > 0 ? 'Зачисление клиенту' : 'Списание со счёта клиента';
+        if (!await confirmAction({
+          title: 'Корректировка баланса',
+          intro: 'Проводка пройдёт двойной записью через казначейский счёт и станет частью журнала. Отменить её можно только встречной корректировкой.',
+          rows: [
+            ['Направление', dir],
+            ['Актив', asset],
+            ['Сумма', `${num > 0 ? '+' : ''}${raw} ${asset}`, num > 0 ? 'total in' : 'total out'],
+            ['Основание', reason],
+          ],
+          warn: 'Действие попадёт в журнал аудита с вашим именем.',
+          okLabel: 'Провести корректировку',
+          level: 'critical',
+          confirmText: raw,
+          confirmHint: `Повторите сумму (${raw}), чтобы подтвердить её точность`,
+        })) return;
+
         try {
-          const r = await API.post(`/admin/users/${uid}/adjust`, {
-            asset: qs('[data-a]', body).value.trim().toUpperCase(),
-            amount: qs('[data-am]', body).value.trim(), reason });
+          const r = await API.post(`/admin/users/${uid}/adjust`, { asset, amount: raw, reason });
           m.close(); toast({ title: 'Корректировка проведена', msg: r.amount, kind: 'ok' });
         } catch (e) { toast({ title: 'Отклонено', msg: e.message, kind: 'err' }); }
       });

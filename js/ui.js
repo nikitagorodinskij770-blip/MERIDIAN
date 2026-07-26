@@ -123,6 +123,96 @@ export function confirmModal({ title, text, okLabel = 'Подтвердить', 
   });
 }
 
+/**
+ * Подтверждение операции.
+ *
+ * Обычный «вы уверены?» не работает: через неделю человек жмёт «да» не читая,
+ * потому что вопрос всегда одинаковый и ничего не сообщает. Поэтому здесь
+ * показывается не вопрос, а разбор — что именно спишется, что придёт, сколько
+ * возьмёт комиссия и куда уйдут средства. Подтверждают то, что видят.
+ *
+ * Трение соразмерно последствиям, и это осознанный выбор:
+ *   normal   — обычная кнопка. Операция обратима или дёшева.
+ *   danger   — кнопка красная, фокус остаётся на «Отмене»: случайный Enter
+ *              не проводит операцию.
+ *   critical — вдобавок нужно вручную ввести проверочную строку. Ставится
+ *              там, где отменить нельзя: вывод на внешний адрес, правка
+ *              чужого баланса, блокировка счёта.
+ *
+ * @param {object}   o
+ * @param {string}   o.title
+ * @param {string}  [o.intro]    — одна фраза о том, что произойдёт
+ * @param {Array}   [o.rows]     — [['Списывается','0.5 BTC'], …] разбор операции
+ * @param {string}  [o.warn]     — предупреждение о необратимости
+ * @param {string}  [o.okLabel]
+ * @param {'normal'|'danger'|'critical'} [o.level]
+ * @param {string}  [o.confirmText] — что нужно набрать при level='critical'
+ * @param {string}  [o.confirmHint]
+ * @returns {Promise<boolean>}
+ */
+export function confirmAction({
+  title, intro = '', rows = [], warn = '', okLabel = 'Подтвердить',
+  level = 'normal', confirmText = '', confirmHint = '',
+}) {
+  const critical = level === 'critical' && !!confirmText;
+  const danger = level !== 'normal';
+
+  const body = h(`<div class="cfm">
+    ${intro ? `<p class="cfm-intro">${esc(intro)}</p>` : ''}
+    ${rows.length ? `<dl class="cfm-rows">
+      ${rows.map(([k, v, mod]) => `
+        <div class="cfm-row${mod ? ' ' + mod : ''}">
+          <dt>${esc(k)}</dt><dd>${esc(String(v))}</dd>
+        </div>`).join('')}
+    </dl>` : ''}
+    ${warn ? `<div class="cfm-warn">${ICONS.alert}<span>${esc(warn)}</span></div>` : ''}
+    ${critical ? `<label class="cfm-type">
+      <span>${esc(confirmHint || `Введите ${confirmText} для подтверждения`)}</span>
+      <input class="input" data-type autocomplete="off" spellcheck="false"
+             aria-label="Проверочная строка">
+    </label>` : ''}
+  </div>`);
+
+  return new Promise(resolve => {
+    const m = modal({
+      title,
+      body,
+      width: rows.length > 4 ? 520 : 460,
+      footer: `<button class="btn btn-ghost" data-no>Отмена</button>
+               <button class="btn ${danger ? 'btn-down' : 'btn-primary'}" data-yes
+                       ${critical ? 'disabled' : ''}>${esc(okLabel)}</button>`,
+    });
+
+    const yes = qs('[data-yes]', m.node);
+    const no = qs('[data-no]', m.node);
+
+    if (critical) {
+      const inp = qs('[data-type]', body);
+      // Сверяем без учёта регистра и пробелов по краям: цель проверки —
+      // заставить прочитать и осознанно повторить, а не поймать на опечатке.
+      const norm = s => s.trim().toLowerCase();
+      inp.addEventListener('input', () => {
+        yes.disabled = norm(inp.value) !== norm(confirmText);
+      });
+      setTimeout(() => inp.focus(), 30);
+    } else {
+      // На опасных действиях фокус остаётся на отказе: привычка «Enter после
+      // диалога» не должна проводить операцию.
+      setTimeout(() => (danger ? no : yes).focus(), 30);
+    }
+
+    let done = false;
+    const finish = v => { if (done) return; done = true; m.close(); resolve(v); };
+    no.addEventListener('click', () => finish(false));
+    yes.addEventListener('click', () => { if (!yes.disabled) finish(true); });
+
+    // Закрытие крестиком, Escape или кликом по фону — это отказ
+    const layer = qs('#modal-layer');
+    const watch = new MutationObserver(() => { if (layer.hidden) finish(false); });
+    watch.observe(layer, { attributes: true, attributeFilter: ['hidden'] });
+  });
+}
+
 /** Модалка выбора актива с поиском. */
 export function assetPicker({ title = 'Выберите актив', filter = null, onPick }) {
   const list = ASSETS.filter(a => (filter ? filter(a) : true));

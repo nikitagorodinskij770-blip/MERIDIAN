@@ -4,7 +4,7 @@
 import { ASSETS, ASSET_MAP, CONFIG } from '../seed.js';
 import * as market from '../market.js';
 import * as store from '../store.js';
-import { h, qs, qsa, on, coinIcon, assetPicker, toast, ICONS } from '../ui.js';
+import { h, qs, qsa, on, coinIcon, assetPicker, toast, ICONS, confirmAction } from '../ui.js';
 import { fmtNum, fmtUSD, fmtPrice, parseAmount, esc, timeAgo } from '../format.js';
 
 const METHODS = [
@@ -189,15 +189,30 @@ export default {
       },
     }));
 
-    qs('[data-buy]', el).addEventListener('click', () => {
+    qs('[data-buy]', el).addEventListener('click', async () => {
       if (!store.isSignedIn()) {
         toast({ title: 'Нужен вход', msg: 'Войдите, чтобы купить.', kind: 'warn' });
-        location.hash = '#/signin';
+        location.hash = '#/enter';
         return;
       }
       const v = parseAmount(famt.value);
       if (!v) { toast({ title: 'Введите сумму', kind: 'err' }); return; }
       if (v < 10) { toast({ title: 'Минимум 10', msg: `Сумма меньше минимальной для ${fiat}`, kind: 'err' }); return; }
+
+      const feeAmt = v * CONFIG.buyCardFeeRate;
+      const received = (v - feeAmt) * market.rate(fiat, asset);
+      const ok = await confirmAction({
+        title: 'Подтвердите покупку',
+        intro: 'С карты спишется указанная сумма, актив зачислится на счёт по текущему курсу.',
+        rows: [
+          ['Списывается с карты', `${fmtNum(v, 2, 2)} ${fiat}`, 'out'],
+          ['Комиссия сервиса', `${fmtNum(feeAmt, 2, 2)} ${fiat} · ${(CONFIG.buyCardFeeRate * 100).toFixed(2)}%`],
+          ['Курс', `1 ${asset} = ${fmtNum(market.rate(asset, fiat), 2, 2)} ${fiat}`],
+          ['Зачисляется', `${fmtNum(received, 0, 8)} ${asset}`, 'total in'],
+        ],
+        okLabel: `Купить ${asset}`,
+      });
+      if (!ok) return;
 
       const btn = qs('[data-buy]', el);
       btn.disabled = true;
