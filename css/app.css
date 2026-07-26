@@ -133,6 +133,24 @@ input,select,textarea{ font-family:inherit; font-size:var(--fs-base); }
 
 /* --- Tables --- */
 .table-wrap{ overflow-x:auto; }
+
+/* Видимый фокус с клавиатуры.
+
+   Очертание фокуса было только у полей ввода: тот, кто ходит по интерфейсу
+   клавишами, не видел, где находится, — а на бирже это означает нажать не ту
+   кнопку. Берётся :focus-visible, а не :focus: кольцо появляется при
+   навигации с клавиатуры и не мешает при щелчке мышью, где положение
+   указателя и так известно.
+
+   Цвет — брендовый, он же контрастен к обеим темам; смещение наружу, чтобы
+   кольцо не наезжало на содержимое кнопки. */
+:where(a, button, summary, [tabindex]:not([tabindex="-1"])):focus-visible{
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
+/* У полей своё оформление фокуса — рамка и подсветка; двойное кольцо там лишнее */
+.input:focus-visible, .select:focus-visible, textarea:focus-visible{ outline: none; }
 table.tbl{ width:100%; border-collapse:collapse; font-size:var(--fs-base); }
 table.tbl th{ text-align:left; color:var(--muted); font-weight:600; font-size:var(--fs-sm);
   padding:12px 14px; border-bottom:1px solid var(--line); white-space:nowrap; background:var(--card); }

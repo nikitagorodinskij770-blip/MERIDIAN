@@ -85,7 +85,8 @@ export default {
           <div class="field" data-pricefield>
             <label>Цена <span class="muted" data-qlabel>${esc(quote)}</span></label>
             <div class="amount-input">
-              <input type="text" inputmode="decimal" data-price>
+              <input type="text" inputmode="decimal" data-price placeholder="0.00"
+                     aria-label="Цена заявки">
               <span class="suffix" data-qsuffix>${esc(quote)}</span>
             </div>
           </div>
