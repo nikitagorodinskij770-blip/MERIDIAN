@@ -157,16 +157,26 @@ export default {
         return;
       }
       box.innerHTML = list.map(t => {
+        // Операции приходят из журнала базы, где у строки один актив — тот,
+        // что зачислен. Отданный актив отдельным полем не хранится, зато есть
+        // описание вида «Обмен USDT → BTC», составленное самой функцией
+        // обмена. Берём заголовок оттуда: прежний код читал t.meta, которого
+        // после переезда на серверный журнал нет, и рисовал «? → BTC»
+        // и списание «−0» — то есть выдумывал недостающее.
         const m = t.meta || {};
+        const title = m.from
+          ? `${esc(m.from)} → ${esc(m.to || t.asset)}`
+          : esc(t.note || `Обмен в ${t.asset}`);
         return `<div class="tx-row">
           <div class="ic tx-neu">${ICONS.swap}</div>
           <div>
-            <div style="color:var(--ink);font-weight:600">${esc(m.from || '?')} → ${esc(m.to || t.asset)}</div>
+            <div style="color:var(--ink);font-weight:600">${title}</div>
             <div class="muted" style="font-size:12px">${timeAgo(t.ts)}</div>
           </div>
           <div style="text-align:right">
             <div class="mono up">+${fmtNum(t.amount, 0, 8)} ${esc(t.asset)}</div>
-            <div class="muted mono" style="font-size:12px">−${fmtNum(m.sent || 0, 0, 8)} ${esc(m.from || '')}</div>
+            ${m.sent ? `<div class="muted mono" style="font-size:12px">−${fmtNum(m.sent, 0, 8)} ${esc(m.from)}</div>`
+                     : (t.fee ? `<div class="muted mono" style="font-size:12px">комиссия ${fmtNum(t.fee, 0, 8)} ${esc(t.asset)}</div>` : '')}
           </div>
         </div>`;
       }).join('');

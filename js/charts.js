@@ -65,10 +65,21 @@ export function drawSparkline(canvas, data, color) {
   if (!ensureSized(canvas, () => drawSparkline(canvas, data, color))) return;
   const { ctx, w, h } = setup(canvas);
   const min = Math.min(...data), max = Math.max(...data);
-  const span = max - min || max * 0.001 || 1;
+
+  // Спарклайн нормируется по собственному минимуму и максимуму, и без нижней
+  // границы масштаба это врёт: стейблкоин, качнувшийся на сотую долю процента,
+  // рисуется той же амплитудой, что биткоин на пяти процентах, — и выглядит
+  // волатильнее него. Пол в один процент от цены возвращает масштабу смысл:
+  // спокойный инструмент остаётся спокойной линией, а сравнение строк
+  // взглядом снова работает.
+  const MIN_REL_SPAN = 0.01;
+  const mid = (max + min) / 2;
+  const span = Math.max(max - min, Math.abs(mid) * MIN_REL_SPAN) || 1;
+  const lo = mid - span / 2;
+
   const pad = 3;
   const x = i => (i / (data.length - 1)) * w;
-  const y = v => h - pad - ((v - min) / span) * (h - pad * 2);
+  const y = v => h - pad - ((v - lo) / span) * (h - pad * 2);
 
   const rising = data[data.length - 1] >= data[0];
   const stroke = color || (rising ? CSS.up : CSS.down);
